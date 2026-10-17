@@ -73,6 +73,29 @@ Load generator: open-loop Poisson arrivals at `--rate` workflows/s. Each workflo
 deadline is `arrival + slack * (that question's solo latency)`, with slack drawn from
 `--slack` (default `1.5,3,6`).
 
+## First results (2026-10-16)
+
+One g5.xlarge (A10G 24 GB), vLLM 0.11.0, Qwen3-8B bf16, default config
+(k=8, thinking budget 1024 doubling to 4096, up to 3 rounds, confidence 0.7).
+Single-stream decode is about 27 tokens/s, so a 1024-token thought takes about 38 s.
+
+| Run | n | Accuracy (strict / lenient) | Latency p50 / p90 / p99 | Deadline met | Met, slack 1.5x |
+|---|---|---|---|---|---|
+| Solo (one at a time) | 50 | 0.38 / 0.52 | 40 / 166 / 264 s | n/a | n/a |
+| Load, 0.05 workflows/s | 100 | 0.42 / 0.52 | 44 / 133 / 195 s | 0.96 | 0.92 |
+| Load, 0.2 workflows/s | 100 | 0.43 / 0.54 | 59 / 171 / 336 s | 0.83 | 0.56 |
+
+Notes:
+- Per-workflow cost is very uneven (p90 is about 4x p50): hard questions exhaust the
+  budget, fail the check or the DSL, and go another round with a larger budget.
+- On one GPU, going from 0.05 to 0.2 workflows/s drops tight-deadline (1.5x) workflows
+  from 92% to 56% on time. That gap is what tiering and promotion should close.
+- The CHECK step is poorly calibrated: 43 of 53 solo checks answered 0.85 or 0.95, and
+  16 of 23 retries came from DSL errors rather than low confidence. That makes it a
+  candidate for Jev.
+- Common misses: the answer given as a percent instead of a fraction (counted by lenient
+  scoring), sign errors, and running out of thinking budget.
+
 ## Layout
 
 ```
