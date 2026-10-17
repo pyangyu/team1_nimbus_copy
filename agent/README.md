@@ -75,6 +75,8 @@ deadline is `arrival + slack * (that question's solo latency)`, with slack drawn
 
 ## First results (2026-10-16)
 
+Full writeup and raw outputs: [`results/2026-10-16/`](results/2026-10-16/WRITEUP.md).
+
 One g5.xlarge (A10G 24 GB), vLLM 0.11.0, Qwen3-8B bf16, default config
 (k=8, thinking budget 1024 doubling to 4096, up to 3 rounds, confidence 0.7).
 Single-stream decode is about 27 tokens/s, so a 1024-token thought takes about 38 s.
