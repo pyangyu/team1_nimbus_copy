@@ -1,2 +1,2 @@
 .env
-userdata.generated.sh
+userdata*.generated.sh

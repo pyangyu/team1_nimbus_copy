@@ -55,14 +55,14 @@ the agent.
 cd agent
 pip install -e .[test] && pytest -q
 
-# a GPU box running vLLM + Qwen3-8B (see infra/vllm-ec2)
-eval "$(../infra/vllm-ec2/up.sh | sed 's/^/export /')"
+# two GPU boxes (rt + batch tier) running vLLM + Qwen3-8B; needs infra/vllm-ec2/.env (see the top-level README)
+eval "$(../infra/vllm-ec2/up.sh | sed 's/^/export /')"   # LIFELINE_BASE_URL points at the batch tier
 
 python -m lifeline_agent.run --index 0 -v            # one question, full trace
 python -m lifeline_agent.run --n 50 --out runs/solo  # solo calibration
 python -m lifeline_agent.loadgen --rate 0.1 --n 100 --solo-ref runs/solo/workflows.jsonl --only-ref
 
-../infra/vllm-ec2/down.sh                            # stop the GPU box
+../infra/vllm-ec2/down.sh                            # stop both GPU boxes
 ```
 
 FinQA is downloaded to `agent/data/` on first use. Each run writes `calls.jsonl`
