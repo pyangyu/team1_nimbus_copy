@@ -1,0 +1,14 @@
+{
+  "n": 50,
+  "accuracy": 0.38,
+  "accuracy_lenient": 0.52,
+  "errors": 0,
+  "latency_p50_s": 39.968,
+  "latency_p90_s": 165.7737,
+  "latency_p99_s": 264.0042,
+  "rounds_mean": 1.46,
+  "llm_calls_mean": 3.52,
+  "prompt_tokens_mean": 1992.94,
+  "thinking_tokens_mean": 1729.42,
+  "answer_tokens_mean": 109.7
+}

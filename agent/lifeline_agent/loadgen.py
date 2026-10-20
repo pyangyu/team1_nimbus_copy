@@ -53,7 +53,8 @@ async def main(args) -> None:
     cfg = config_from(args)
     out = Path(args.out or f"runs/load-r{args.rate}-{time.strftime('%Y%m%d-%H%M%S')}")
     calls, wfs = metrics.Jsonl(out / "calls.jsonl"), metrics.Jsonl(out / "workflows.jsonl")
-    (out / "config.json").write_text(json.dumps({**vars(args), "default_solo_s": default_solo}, indent=2))
+    cfg_dump = {k: v for k, v in vars(args).items() if k != "api_key"}
+    (out / "config.json").write_text(json.dumps({**cfg_dump, "default_solo_s": default_solo}, indent=2))
 
     done: list[dict] = []
 
