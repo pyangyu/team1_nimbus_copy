@@ -10,3 +10,11 @@ set -a; source .env; set +a
 [[ -n "${AWS_ACCESS_KEY_ID:-}" ]] || unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 REGION=${AWS_REGION:-us-east-1}
 AWS="aws --region $REGION"
+
+if [[ -n "${AWS_ACCOUNT_ID:-}" ]]; then
+  CALLER_ACCOUNT=$($AWS sts get-caller-identity --query Account --output text)
+  if [[ "$CALLER_ACCOUNT" != "$AWS_ACCOUNT_ID" ]]; then
+    echo "your AWS credentials are for account $CALLER_ACCOUNT, but AWS_ACCOUNT_ID in .env is $AWS_ACCOUNT_ID" >&2
+    exit 1
+  fi
+fi

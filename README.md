@@ -25,6 +25,9 @@ The team shares two g5.xlarge instances (one A10G each) in Liam's AWS account:
 1. Copy the env file: `cp infra/vllm-ec2/.env.example infra/vllm-ec2/.env`
 2. Fill in the three blank values (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
    `LIFELINE_API_KEY`) with what Liam sends you privately. Everything else is already set.
+   `AWS_ACCOUNT_ID` defaults to Liam's account; to run on your own AWS account instead, set
+   it to your account ID and use your own keys and `LIFELINE_API_KEY`. The scripts refuse
+   to run if your keys belong to a different account than `AWS_ACCOUNT_ID`.
 3. Start the servers (or find them already running) and export their URLs:
    `eval "$(infra/vllm-ec2/up.sh | sed 's/^/export /')"`
 4. Stop them when you're done: `infra/vllm-ec2/down.sh` (or `down.sh rt` / `down.sh batch`).
