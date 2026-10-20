@@ -60,7 +60,7 @@ ExecStartPre=-/usr/bin/docker rm -f vllm
 ExecStart=/usr/bin/docker run --name vllm --gpus all --ipc=host -p 8000:8000 \
   -v /opt/hf:/root/.cache/huggingface $VLLM_IMAGE \
   --model $MODEL --max-model-len $MAX_MODEL_LEN --gpu-memory-utilization 0.92 \
-  --api-key $LIFELINE_API_KEY --enable-prefix-caching --scheduling-policy priority $extra
+  --api-key $LIFELINE_API_KEY --enable-prefix-caching $extra
 [Install]
 WantedBy=multi-user.target
 UNIT
