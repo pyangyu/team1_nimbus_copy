@@ -55,7 +55,7 @@ the agent.
 cd agent
 pip install -e .[test] && pytest -q
 
-# two GPU boxes (rt + batch tier) running vLLM + Qwen3-8B; needs infra/vllm-ec2/.env (see the top-level README)
+# two GPU boxes (rt + batch tier) running vLLM + Qwen3-8B; needs infra/vllm-ec2/secrets.env (see the top-level README)
 eval "$(../infra/vllm-ec2/up.sh | sed 's/^/export /')"   # LIFELINE_BASE_URL points at the batch tier
 
 python -m lifeline_agent.run --index 0 -v            # one question, full trace

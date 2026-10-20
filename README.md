@@ -22,18 +22,16 @@ The header contract between the agent and the gateway is in
 The team shares two g5.xlarge instances (one A10G each) in Liam's AWS account:
 `lifeline-vllm-rt` for the real-time tier and `lifeline-vllm-batch` for the batch tier.
 
-1. Copy the env file: `cp infra/vllm-ec2/.env.example infra/vllm-ec2/.env`
-2. Fill in the three blank values (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
-   `LIFELINE_API_KEY`) with what Liam sends you privately. Everything else is already set.
-   `AWS_ACCOUNT_ID` defaults to Liam's account; to run on your own AWS account instead, set
-   it to your account ID and use your own keys and `LIFELINE_API_KEY`. The scripts refuse
-   to run if your keys belong to a different account than `AWS_ACCOUNT_ID`.
-3. Start the servers (or find them already running) and export their URLs:
+1. Get `secrets.env` from Liam and put it in `infra/vllm-ec2/`. Settings are in
+   `infra/vllm-ec2/config.env`; `AWS_ACCOUNT_ID` there is Liam's account, so to use your
+   own AWS account, change it and use your own `secrets.env`. The scripts refuse to run if
+   your credentials belong to a different account.
+2. Start the servers (or find them already running) and export their URLs:
    `eval "$(infra/vllm-ec2/up.sh | sed 's/^/export /')"`
-4. Stop them when you're done: `infra/vllm-ec2/down.sh` (or `down.sh rt` / `down.sh batch`).
+3. Stop them when you're done: `infra/vllm-ec2/down.sh` (or `down.sh rt` / `down.sh batch`).
 
 Rules:
-- `.env` is gitignored. Never commit it, and never paste the keys into an issue, PR or
+- `secrets.env` is gitignored. Never commit it or paste its contents into an issue, PR or
   comment: everyone in the course org can read this repo.
 - The servers are shared. Stopping one stops it for everyone, so check the team chat first.
 - Each instance costs about $1/hour while running, so don't leave them on overnight.

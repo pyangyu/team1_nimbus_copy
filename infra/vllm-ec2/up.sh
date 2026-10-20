@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Bring up (or restart) the vLLM servers on EC2, one GPU per tier (rt, batch).
 # Usage: ./up.sh [rt] [batch]   (default: both) -> prints LIFELINE_*_BASE_URL / LIFELINE_API_KEY
-# Config via .env (copy .env.example): INSTANCE_TYPE, MODEL, VLLM_IMAGE, MAX_MODEL_LEN, RT_MAX_NUM_SEQS, AWS_REGION
+# Settings in config.env; credentials in secrets.env (not in git, get it from Liam)
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
-[[ -n "${LIFELINE_API_KEY:-}" ]] || { echo "LIFELINE_API_KEY is empty in .env" >&2; exit 1; }
+[[ -n "${LIFELINE_API_KEY:-}" ]] || { echo "LIFELINE_API_KEY is missing from secrets.env" >&2; exit 1; }
 
 TIERS=("$@")
 [[ ${#TIERS[@]} -gt 0 ]] || TIERS=(rt batch)
