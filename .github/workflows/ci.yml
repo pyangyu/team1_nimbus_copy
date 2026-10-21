@@ -102,9 +102,9 @@ jobs:
           MATH_AGENT_LIVE: "1"
         run: pytest -q -rs
       - name: Stop the GPU if this run started it, and close the runner's firewall hole
-        if: always()
+        if: always() && steps.before.outcome == 'success'
         run: |
-          if [ "${{ steps.before.outputs.state }}" != "running" ]; then
+          if [ "${{ steps.before.outputs.state }}" = "stopped" ]; then
             infra/vllm-ec2/down.sh batch || true
           fi
           sg=$(aws ec2 describe-security-groups --filters Name=group-name,Values=lifeline-vllm-sg \
