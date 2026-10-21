@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [agent, lifeline]
+        package: [agent, lifeline, classifier]
         python: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4

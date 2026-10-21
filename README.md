@@ -17,7 +17,7 @@ finished requests -> actual thinking length -> online update of the classifier
 ```
 
 1. **Budget classifier.** A lightweight Jev-style classifier predicts a thinking
-   tier (T0 none up to T4 about 8K tokens) for each prompt. It runs silently,
+   bucket (ten literal buckets, 0-32 tokens up to 16K+) for each prompt. It runs silently,
    logging until load rises, and learns online: each finished request's actual
    thinking length is a free label, so it needs no offline training and follows
    model upgrades.
@@ -43,7 +43,7 @@ exam night.
 | Math agent: multi-step workflows with deadlines; client-side budget drop and notice for experiments | first version | [`agent/`](agent/) (FinQA version in [`agent/archive/finqa/`](agent/archive/finqa/)) |
 | vLLM on EC2: two A10G GPUs | scripts ready, CI runs on them | [`infra/vllm-ec2/`](infra/vllm-ec2/) |
 | Budget-drop baselines and SFT/RL training (Qwen3-4B + LoRA) | in progress (Matthew) | |
-| Budget classifier (online) | todo | |
+| Budget classifier (online, ten buckets, Jev while cold) | first version | [`classifier/`](classifier/) |
 | Pressure monitor and budget controller in vLLM | todo | |
 | Cut-token injection in the engine | todo (the agent emulates it client-side) | |
 
