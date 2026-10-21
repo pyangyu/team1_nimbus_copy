@@ -1,4 +1,5 @@
-cd "$(dirname "${BASH_SOURCE[0]}")"
+# shellcheck shell=bash
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 export AWS_PAGER=""
 export MSYS_NO_PATHCONV=1  # Git Bash on Windows would rewrite /dev/sda1
 
