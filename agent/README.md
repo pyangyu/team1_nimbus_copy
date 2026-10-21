@@ -8,6 +8,50 @@ team's budget-drop experiments measured.
 
 The earlier FinQA agent is archived in [`archive/finqa/`](archive/finqa/).
 
+## System today
+
+```mermaid
+flowchart LR
+  subgraph client["Laptop or CI runner"]
+    cli["math_agent.run / loadgen<br/>(Poisson arrivals, deadlines)"]
+    wf["workflow.py<br/>PLAN → SOLVE → VERIFY → retry"]
+    llm["llm.py<br/>budget forcing · budget drop · final-answer mode<br/>X-Lifeline-* headers"]
+    data[("agent/data/math<br/>MATH-500 · AIME 2026 · GSM8K")]
+    out[("runs/…<br/>calls · workflows · summary")]
+    cli --> wf --> llm
+    data --> cli
+    wf --> out
+  end
+
+  subgraph aws["AWS account 826671498662 · us-east-1"]
+    batch["lifeline-vllm-batch<br/>g5.xlarge (A10G) · vLLM · Qwen3-8B"]
+    rt["lifeline-vllm-rt<br/>g5.xlarge (A10G) · vLLM · Qwen3-8B"]
+    ssm[("SSM /capstone/vllm-api-key")]
+    role["IAM role capstone-github-ci"]
+  end
+
+  gh["GitHub Actions CI<br/>(push to main / manual)"]
+  gw["gateway + decision controller<br/>(not wired in yet)"]
+
+  llm -- "HTTP /v1/completions (streaming)<br/>LIFELINE_BASE_URL" --> batch
+  llm -. "later" .-> gw -. "routes by tier" .-> rt & batch
+  gh -- "OIDC, no stored keys" --> role
+  role -- "start/stop GPUs, read key" --> batch
+  role --> ssm
+  ssm -. "API key" .-> llm
+```
+
+- The agent calls one OpenAI-compatible endpoint. Today that is the batch-tier vLLM
+  server directly; the rt server is up for the real-time tier but nothing routes to it
+  yet. Once the gateway exists, `LIFELINE_BASE_URL` points at it instead.
+- The vLLM API key lives in SSM. `infra/vllm-ec2/` reads it from there unless
+  `secrets.env` sets it, and it works with any credentials for the account (a profile,
+  `secrets.env`, or CI's role).
+- CI assumes `capstone-github-ci` through GitHub's OIDC, so the repo stores no AWS keys.
+  On every push to `main` it runs the unit and end-to-end tests, then starts the batch
+  GPU, runs the whole suite again with the live test against real vLLM, and stops the GPU
+  if it started it.
+
 ## Workflow
 
 ```
@@ -85,7 +129,8 @@ on the same prefix (cheap with prefix caching).
 
 `test_live.py` runs one GSM8K workflow against a real server. It is skipped unless
 `MATH_AGENT_LIVE=1` is set together with `LIFELINE_BASE_URL` and `LIFELINE_API_KEY`
-(for example after `up.sh`). CI skips it.
+(for example after `up.sh`). CI's `aws` job sets them and runs it against the batch GPU
+on every push to `main`.
 
 ## Running
 
