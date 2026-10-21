@@ -1,0 +1,18 @@
+{
+  "base_url": "http://100.57.170.201:8000/v1",
+  "model": null,
+  "split": "dev",
+  "budget": 1024,
+  "max_budget": 4096,
+  "max_loops": 2,
+  "k": 8,
+  "conf": 0.7,
+  "out": "runs/load-r0.05",
+  "rate": 0.05,
+  "n": 100,
+  "slack": "1.5,3,6",
+  "solo_ref": "runs/solo/workflows.jsonl",
+  "only_ref": true,
+  "default_solo_s": 39.968008279800415,
+  "seed": 0
+}

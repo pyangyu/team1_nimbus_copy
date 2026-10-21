@@ -1,0 +1,35 @@
+{
+  "n": 100,
+  "accuracy": 0.43,
+  "accuracy_lenient": 0.54,
+  "errors": 0,
+  "latency_p50_s": 58.9778,
+  "latency_p90_s": 170.5043,
+  "latency_p99_s": 336.1295,
+  "rounds_mean": 1.35,
+  "llm_calls_mean": 3.44,
+  "prompt_tokens_mean": 1892.59,
+  "thinking_tokens_mean": 1453.18,
+  "answer_tokens_mean": 106.91,
+  "deadline_met": 0.83,
+  "correct_and_on_time": 0.37,
+  "rate": 0.2,
+  "wall_s": 698.3,
+  "by_slack": {
+    "1.5": {
+      "n": 36,
+      "deadline_met": 0.5556,
+      "accuracy": 0.4722
+    },
+    "3.0": {
+      "n": 25,
+      "deadline_met": 0.96,
+      "accuracy": 0.48
+    },
+    "6.0": {
+      "n": 39,
+      "deadline_met": 1,
+      "accuracy": 0.359
+    }
+  }
+}
