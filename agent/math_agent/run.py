@@ -1,7 +1,8 @@
 """Run workflows one at a time (no contention).
 
-  python -m lifeline_agent.run --index 0 -v        # one question, full trace
-  python -m lifeline_agent.run --n 50              # solo calibration run
+  python -m math_agent.run --index 0 -v                      # one problem, full trace
+  python -m math_agent.run --n 50                            # solo calibration run
+  python -m math_agent.run --dataset aime2026 --n 30 --answer-mode final
 
 The solo run's workflows.jsonl is the reference the load generator uses to
 set deadlines (slack x solo latency).
@@ -17,9 +18,7 @@ import time
 from pathlib import Path
 
 from . import metrics
-from .common import add_common_args, client_from, config_from
-from .datasets import finqa
-from .retrieval import Retriever
+from .common import add_common_args, client_from, config_from, examples_from
 from .workflow import run_workflow
 
 
@@ -33,8 +32,7 @@ def pick(examples, args):
 
 
 async def main(args) -> None:
-    examples = pick(finqa.load(args.split), args)
-    retriever = Retriever(finqa.corpus())
+    examples = pick(examples_from(args), args)
     llm = client_from(args)
     cfg = config_from(args)
     out = Path(args.out or f"runs/solo-{time.strftime('%Y%m%d-%H%M%S')}")
@@ -42,17 +40,17 @@ async def main(args) -> None:
     done = []
     try:
         for i, ex in enumerate(examples):
-            r = await run_workflow(ex, retriever, llm, cfg, on_call=lambda c: calls.write(c.record()))
+            r = await run_workflow(ex, llm, cfg, on_call=lambda c: calls.write(c.record()))
             rec = r.record()
             wfs.write(rec)
             done.append(rec)
-            mark = "OK " if r.correct else ("~  " if r.correct_lenient else "X  ")
+            mark = "OK " if r.correct else "X  "
             print(f"{i + 1:>3}/{len(examples)} {mark} {r.latency_s:6.1f}s rounds={r.rounds} "
                   f"think={r.thinking_tokens:<5} pred={r.pred!s:<12.12} gold={r.gold!s:<12.12} {ex.id}"
                   + (f"  ERR {r.error}" if r.error else ""))
             if args.verbose:
                 print("  Q:", ex.question)
-                print("  gold program:", ex.gold_program)
+                print("  gold:", ex.gold)
                 for t in r.trace:
                     print("   ", json.dumps(t, default=str)[:400])
     finally:

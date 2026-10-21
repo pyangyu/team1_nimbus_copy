@@ -1,7 +1,7 @@
-"""Open-loop load generator: Poisson arrivals of agentic workflows, each with a
+"""Open-loop load generator: Poisson arrivals of math workflows, each with a
 deadline, all sharing one endpoint.
 
-  python -m lifeline_agent.loadgen --rate 0.2 --n 100 --solo-ref runs/solo-x/workflows.jsonl
+  python -m math_agent.loadgen --rate 0.2 --n 100 --solo-ref runs/solo-x/workflows.jsonl
 
 Deadline = arrival + slack * solo latency of that question (from --solo-ref;
 falls back to the solo p50 for questions not in the reference, or to
@@ -18,9 +18,7 @@ import time
 from pathlib import Path
 
 from . import metrics
-from .common import add_common_args, client_from, config_from
-from .datasets import finqa
-from .retrieval import Retriever
+from .common import add_common_args, client_from, config_from, examples_from
 from .workflow import run_workflow
 
 
@@ -38,16 +36,13 @@ def load_solo(path: str | None) -> dict[str, float]:
 async def main(args) -> None:
     rng = random.Random(args.seed)
     solo = load_solo(args.solo_ref)
-    pool = finqa.load(args.split)
+    pool = examples_from(args)
     if solo and args.only_ref:
         pool = [e for e in pool if e.id in solo]
     examples = [rng.choice(pool) for _ in range(args.n)]
     slacks = [float(s) for s in args.slack.split(",")]
     default_solo = metrics.pct(list(solo.values()), 50) if solo else args.default_solo_s
 
-    retriever = Retriever(finqa.corpus())
-    for e in examples:  # build indexes before the clock starts
-        retriever.search(e.doc, "warmup", 1)
     llm = client_from(args)
     await llm.resolve_model()
     cfg = config_from(args)
@@ -62,7 +57,7 @@ async def main(args) -> None:
         arrival = time.time()
         slack = rng.choice(slacks)
         deadline = arrival + slack * solo.get(ex.id, default_solo)
-        r = await run_workflow(ex, retriever, llm, cfg, workflow_id=f"w{i:05d}", arrival=arrival,
+        r = await run_workflow(ex, llm, cfg, workflow_id=f"w{i:05d}", arrival=arrival,
                                deadline=deadline, on_call=lambda c: calls.write(c.record()))
         rec = {**r.record(), "slack": slack}
         rec.pop("trace")

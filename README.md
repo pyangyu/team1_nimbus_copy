@@ -7,7 +7,7 @@ requests or cuts their thinking budget.
 
 | Component | Status | Where |
 |---|---|---|
-| Agentic workflow (test agent, FinQA) | first version | [`agent/`](agent/) |
+| Agentic workflow (math agent: MATH-500, AIME 2026, GSM8K) | first version | [`agent/`](agent/) (FinQA version in [`agent/archive/finqa/`](agent/archive/finqa/)) |
 | vLLM on EC2: two GPUs, one per tier (rt, batch) | scripts ready | [`infra/vllm-ec2/`](infra/vllm-ec2/) |
 | LifeLine Gateway | todo | |
 | RT tier / Batch tier (vLLM pods on Kubernetes) | todo | |
@@ -22,13 +22,19 @@ The header contract between the agent and the gateway is in
 The team shares two g5.xlarge instances (one A10G each) in Liam's AWS account:
 `lifeline-vllm-rt` for the real-time tier and `lifeline-vllm-batch` for the batch tier.
 
-1. Get `secrets.env` from Liam and put it in `infra/vllm-ec2/`. Settings are in
+1. Get `secrets.env` from Liam and put it in `infra/vllm-ec2/` (or, if you have your own
+   credentials for the account, skip it: the scripts use your AWS profile and read the vLLM
+   API key from SSM `/capstone/vllm-api-key`). Settings are in
    `infra/vllm-ec2/config.env`; `AWS_ACCOUNT_ID` there is Liam's account, so to use your
    own AWS account, change it and use your own `secrets.env`. The scripts refuse to run if
    your credentials belong to a different account.
 2. Start the servers (or find them already running) and export their URLs:
    `eval "$(infra/vllm-ec2/up.sh | sed 's/^/export /')"`
 3. Stop them when you're done: `infra/vllm-ec2/down.sh` (or `down.sh rt` / `down.sh batch`).
+
+CI (`.github/workflows/ci.yml`, job `aws`) does the same on every push to `main` through an
+OIDC role (`capstone-github-ci`, no stored keys): it starts the batch GPU, runs the agent tests
+against it, and stops it again unless someone already had it running.
 
 Rules:
 - `secrets.env` is gitignored. Never commit it or paste its contents into an issue, PR or
