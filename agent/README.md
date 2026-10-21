@@ -76,6 +76,17 @@ The thinking budget is enforced by budget forcing (Qwen3 chat format): the think
 phase stops at `</think>` or at the budget, then the answer phase is a second request
 on the same prefix (cheap with prefix caching).
 
+## Tests
+
+`pytest -q` runs three layers, all without a GPU:
+- `test_grading.py`: answer extraction and matching
+- `test_workflow.py`: the state machine and budget levers, in process, against a fake transport
+- `test_agent_e2e.py`: the real CLIs (`math_agent.run`, `math_agent.loadgen`), started as subprocesses and configured through the `LIFELINE_*` environment variables, talking over HTTP to a local server that speaks vLLM's API, streaming and API-key check (`tests/vllm_stub.py`). They check that each step feeds the next (the plan reaches SOLVE, SOLVE's answer reaches VERIFY, rejected answers reach the retry), that the thinking budget grows and is capped, the budget drop and final-answer mode, deadlines, a bad API key, and that the load generator runs workflows concurrently
+
+`test_live.py` runs one GSM8K workflow against a real server. It is skipped unless
+`MATH_AGENT_LIVE=1` is set together with `LIFELINE_BASE_URL` and `LIFELINE_API_KEY`
+(for example after `up.sh`). CI skips it.
+
 ## Running
 
 ```bash
@@ -119,6 +130,6 @@ math_agent/
   run.py         sequential runs (trace / calibration)
   loadgen.py     open-loop load with deadlines
   metrics.py
-tests/           grading; workflow and budget levers against a fake streaming vLLM
+tests/           grading; workflow and budget levers; end-to-end CLI runs against a local vLLM stub
 archive/finqa/   the earlier FinQA agent and its 2026-10-16 results (reference only)
 ```
