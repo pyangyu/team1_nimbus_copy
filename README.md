@@ -1,26 +1,59 @@
-# team1_nimbus: Lifeline
+# team1_nimbus: Thinking Brownout
 
-Deadline-aware two-tier LLM serving. Requests carry deadlines; a gateway routes
-interactive chat to a reserved real-time tier and agentic workflows to a
-throughput-optimized batch tier, and a decision controller promotes at-risk
-requests or cuts their thinking budget.
+Rate-limit the reasoning, not the users. When a burst overloads an LLM service, a
+rate limiter rejects requests, a queue lets latency grow, and scale-out arrives
+minutes after the burst. Thinking Brownout serves everyone a little cheaper
+instead: as the queue backs up, it shrinks the thinking budget of every request
+already decoding in proportion to the pressure, tells the model about the cut,
+and trains the model to finish well with less.
+
+```
+requests -> budget classifier -> vLLM queue -> running batch (trained reasoning model)
+                (tier per request)      |               ^
+                                        v               | shrink budgets + <budget_cut left=N>
+                                 pressure monitor -> budget controller
+                                 (backlog -> p)       (budget x (1 - p))
+finished requests -> actual thinking length -> online update of the classifier
+```
+
+1. **Budget classifier.** A lightweight Jev-style classifier predicts a thinking
+   tier (T0 none up to T4 about 8K tokens) for each prompt. It runs silently,
+   logging until load rises, and learns online: each finished request's actual
+   thinking length is a free label, so it needs no offline training and follows
+   model upgrades.
+2. **Budget controller.** `p = backlog / batch capacity`. Every in-flight request's
+   budget becomes `max(tier budget x (1 - p), used + 64)`, and the engine injects a
+   `<budget_cut left=N>` token at the next step so the model wraps up on its own
+   terms instead of being force-closed.
+3. **Trained model.** SFT teaches the model what the cut token means; RL (GRPO)
+   with cuts injected at random times and sizes teaches the trade-off: commit to
+   one approach, skip redundant re-checks, finish cleanly with no reasoning leaking
+   past `</think>`, and use the budget that is left.
+
+What is new is the combination: a load-driven cut on requests already decoding,
+announced to the model, with the model trained for it. Load-driven budgets exist
+only at admission, and budget-trained models only see budgets fixed per request.
+
+The workload is math (MATH-500, AIME 2026, GSM8K): answers are checked
+automatically, so RL is cheap, and bursts look like a tutoring service on an
+exam night.
 
 | Component | Status | Where |
 |---|---|---|
-| Agentic workflow (math agent: MATH-500, AIME 2026, GSM8K) | first version | [`agent/`](agent/) (FinQA version in [`agent/archive/finqa/`](agent/archive/finqa/)) |
-| vLLM on EC2: two GPUs, one per tier (rt, batch) | scripts ready | [`infra/vllm-ec2/`](infra/vllm-ec2/) |
-| LifeLine Gateway | todo | |
-| RT tier / Batch tier (vLLM pods on Kubernetes) | todo | |
-| Metrics collector (queue, KV cache, TTFT, TPOT) | todo | |
-| Decision controller | todo | |
+| Math agent: multi-step workflows with deadlines; client-side budget drop and notice for experiments | first version | [`agent/`](agent/) (FinQA version in [`agent/archive/finqa/`](agent/archive/finqa/)) |
+| vLLM on EC2: two A10G GPUs | scripts ready, CI runs on them | [`infra/vllm-ec2/`](infra/vllm-ec2/) |
+| Budget-drop baselines and SFT/RL training (Qwen3-4B + LoRA) | in progress (Matthew) | |
+| Budget classifier (online) | todo | |
+| Pressure monitor and budget controller in vLLM | todo | |
+| Cut-token injection in the engine | todo (the agent emulates it client-side) | |
 
-The header contract between the agent and the gateway is in
-[`agent/README.md`](agent/README.md#contract-with-the-gateway).
+The request headers the agent sends (budgets, deadlines, budget drops) are in
+[`agent/README.md`](agent/README.md#request-headers).
 
 ## GPUs on the shared AWS account
 
 The team shares two g5.xlarge instances (one A10G each) in Liam's AWS account:
-`lifeline-vllm-rt` for the real-time tier and `lifeline-vllm-batch` for the batch tier.
+`lifeline-vllm-rt` and `lifeline-vllm-batch` (names from the earlier two-tier design; CI uses batch).
 
 1. Get `secrets.env` from Liam and put it in `infra/vllm-ec2/` (or, if you have your own
    credentials for the account, skip it: the scripts use your AWS profile and read the vLLM

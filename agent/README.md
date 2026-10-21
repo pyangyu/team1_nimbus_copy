@@ -1,10 +1,10 @@
 # Math agent
 
-The "Agentic workflow" box in the architecture diagram. It solves math problems as
-multi-step LLM workflows. Every workflow has a verifiable answer, a deadline and a
-token cost, and most of that cost is reasoning (thinking) tokens. Its traffic is what
-the gateway and decision controller schedule, and its budget levers are the ones the
-team's budget-drop experiments measured.
+The workload for Thinking Brownout. It solves math problems as multi-step LLM
+workflows. Every workflow has a verifiable answer, a deadline and a token cost, and
+most of that cost is reasoning (thinking) tokens. Its traffic is what the budget
+controller cuts under load, its accuracy shows what a cut costs, and its budget
+levers are the ones the team's budget-drop experiments measured.
 
 The earlier FinQA agent is archived in [`archive/finqa/`](archive/finqa/).
 
@@ -31,19 +31,20 @@ flowchart LR
   end
 
   gh["GitHub Actions CI<br/>(push to main / manual)"]
-  gw["gateway + decision controller<br/>(not wired in yet)"]
+  bc["budget classifier + pressure monitor + budget controller<br/>(in vLLM, not built yet)"]
 
   llm -- "HTTP /v1/completions (streaming)<br/>LIFELINE_BASE_URL" --> batch
-  llm -. "later" .-> gw -. "routes by tier" .-> rt & batch
+  bc -. "later: cuts in-flight budgets" .-> batch
   gh -- "OIDC, no stored keys" --> role
   role -- "start/stop GPUs, read key" --> batch
   role --> ssm
   ssm -. "API key" .-> llm
 ```
 
-- The agent calls one OpenAI-compatible endpoint. Today that is the batch-tier vLLM
-  server directly; the rt server is up for the real-time tier but nothing routes to it
-  yet. Once the gateway exists, `LIFELINE_BASE_URL` points at it instead.
+- The agent calls one OpenAI-compatible endpoint (`LIFELINE_BASE_URL`), today the
+  `lifeline-vllm-batch` server; `lifeline-vllm-rt` is a second GPU for experiments.
+  The budget drop and the cut notice are emulated client-side by the agent until the
+  budget controller does them inside vLLM; the agent needs no change when it does.
 - The vLLM API key lives in SSM. `infra/vllm-ec2/` reads it from there unless
   `secrets.env` sets it, and it works with any credentials for the account (a profile,
   `secrets.env`, or CI's role).
@@ -94,13 +95,15 @@ Data is downloaded to `agent/data/math/` on first use.
 | `--answer-mode final` | After `</think>` the answer is primed with "The final answer is \boxed{" and capped at 48 tokens, so no reasoning can hide in the answer | Test C |
 
 The drop applies to every SOLVE call and is done client-side for now: the second
-think request carries `X-Lifeline-Budget-Drop: A,W,notice`. Once the gateway cuts
-budgets itself, it takes this over.
+think request carries `X-Lifeline-Budget-Drop: A,W,notice`. Once the budget
+controller cuts budgets inside vLLM under load (and injects `<budget_cut left=N>`),
+it takes this over, and these flags become the way to replay a fixed cut.
 
-## Contract with the gateway
+## Request headers
 
 The agent only knows one OpenAI-compatible `base_url` (`/v1/completions`, streaming).
-Point it at vLLM today and at the gateway later. Every request carries:
+Every request carries these headers, so the server side (budget classifier, budget
+controller, metrics) can tell workflows, steps and phases apart:
 
 | Header | Meaning |
 |---|---|
@@ -111,10 +114,10 @@ Point it at vLLM today and at the gateway later. Every request carries:
 | `X-Lifeline-Thinking-Budget` | thinking tokens allowed for this request |
 | `X-Lifeline-Deadline` | workflow deadline, epoch ms |
 | `X-Lifeline-Budget-Drop` | only on the think request after a drop: `at,to,notice` |
-| `X-Lifeline-Tier` | optional tier hint; the gateway may echo the tier it chose in the response header |
+| `X-Lifeline-Tier` | optional thinking-tier hint; the server may echo the tier it predicted in the response header |
 
 The header names and the `LIFELINE_*` environment variables keep their old prefix
-so teammates' `secrets.env` files and the gateway keep working.
+so teammates' `secrets.env` files keep working.
 
 The thinking budget is enforced by budget forcing (Qwen3 chat format): the think
 phase stops at `</think>` or at the budget, then the answer phase is a second request
@@ -138,8 +141,8 @@ on every push to `main`.
 cd agent
 pip install -e .[test,math] && pytest -q
 
-# two GPU boxes (rt + batch tier) running vLLM; needs infra/vllm-ec2/secrets.env (see the top-level README)
-eval "$(../infra/vllm-ec2/up.sh | sed 's/^/export /')"   # LIFELINE_BASE_URL points at the batch tier
+# two GPU boxes (rt, batch) running vLLM; see the top-level README for credentials
+eval "$(../infra/vllm-ec2/up.sh | sed 's/^/export /')"   # LIFELINE_BASE_URL points at the batch GPU
 
 python -m math_agent.run --index 0 -v                              # one problem, full trace
 python -m math_agent.run --n 50 --out runs/solo                     # solo calibration
