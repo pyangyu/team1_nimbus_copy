@@ -1,118 +1,124 @@
-# Lifeline test agent
+# Math agent
 
-The "Agentic workflow" box in the architecture diagram. It answers FinQA questions
-(numeric QA over S&P 500 annual reports) as multi-step LLM workflows, so every
-workflow has a verifiable answer, a deadline, and a token cost. Its traffic is what
-the Lifeline Gateway and decision controller will schedule.
+The "Agentic workflow" box in the architecture diagram. It solves math problems as
+multi-step LLM workflows. Every workflow has a verifiable answer, a deadline and a
+token cost, and most of that cost is reasoning (thinking) tokens. Its traffic is what
+the gateway and decision controller schedule, and its budget levers are the ones the
+team's budget-drop experiments measured.
+
+The earlier FinQA agent is archived in [`archive/finqa/`](archive/finqa/).
 
 ## Workflow
 
 ```
-PLAN -> RETRIEVE -> REASON -> EXECUTE -> CHECK --(confident or out of rounds)--> ANSWER
-           ^                                |
-           +---- widen k, double budget ----+
+PLAN -> SOLVE -> VERIFY --(confident or out of rounds)--> ANSWER
+          ^         |
+          +---------+  rejected: double the thinking budget, tell SOLVE what was rejected
 ```
 
 | Step | Kind | What it does |
 |---|---|---|
-| PLAN | LLM, no thinking | Lists the facts needed (line items, years) |
-| RETRIEVE | local | BM25 over every FinQA page of that filing (company/year), top k |
-| REASON | LLM, thinking budget | Writes a FinQA DSL program, e.g. `subtract(5829, 5735), divide(#0, 5735)` |
-| EXECUTE | local | Deterministic DSL calculator (`dsl.py`, matches gold `exe_ans` on 100% of train/dev/test) |
-| CHECK | LLM, no thinking | Confidence in [0, 1]; below `--conf` triggers another round |
+| PLAN | LLM, no thinking | Lists the approach in at most 4 lines |
+| SOLVE | LLM, thinking budget | Solves the problem; answer in `\boxed{}`. Optional mid-thinking budget drop and final-answer-only mode (below) |
+| VERIFY | LLM, short thinking budget | Confidence in [0, 1] that the boxed answer is right; below `--conf` triggers another SOLVE round. The last round is not verified |
 
-Scoring: `accuracy` is FinQA execution accuracy; `accuracy_lenient` also accepts 1%
-error and percent-vs-fraction answers.
+Scoring (`grading.py`) is ported from Matthew's budget-drop benchmark: the last
+`\boxed{}` is compared to the gold answer after normalisation, then numerically, then
+with math-verify if installed (`pip install -e .[math]`).
 
-BM25 recall of all gold evidence on dev: 55% at k=4, 69% at k=8, 77% at k=16, 82% at k=24.
-So the retry loop does real work, and per-workflow cost varies a lot.
+## Datasets
+
+| `--dataset` | Source | Problems | Notes |
+|---|---|---|---|
+| `math500` (default) | HuggingFaceH4/MATH-500 | 262 at `--levels 4 5` (default) | Natural thinking median about 4k tokens on Qwen3-4B |
+| `aime2026` | MathArena/aime_2026 | 30 | Held after Qwen3's release, so not memorised; natural thinking median about 12.7k tokens |
+| `gsm8k` | GSM8K test | 1,319 | Short problems, a light traffic class |
+
+The MATH **train** split is not available here on purpose: it is reserved for
+building the budget-notice training data.
+
+Data is downloaded to `agent/data/math/` on first use.
+
+## Budget levers (from Matthew's budget-drop tests, 10-19)
+
+| Flag | What it does | Matches his arm |
+|---|---|---|
+| (budget runs out) | Qwen's early-stop line + `</think>`, then the answer | `cut_now` |
+| `--drop-at A --drop-to W` | After A thinking tokens, only W more are allowed, then the answer is forced | `silent_W` |
+| `... --notice soft` | Same, with "Wait, I'm running out of time..." inserted at the drop | `warn_soft_W` |
+| `... --notice count` | Same, with "I only have about W tokens of thinking left..." | `warn_count_W` |
+| `--answer-mode final` | After `</think>` the answer is primed with "The final answer is \boxed{" and capped at 48 tokens, so no reasoning can hide in the answer | Test C |
+
+The drop applies to every SOLVE call and is done client-side for now: the second
+think request carries `X-Lifeline-Budget-Drop: A,W,notice`. Once the gateway cuts
+budgets itself, it takes this over.
 
 ## Contract with the gateway
 
 The agent only knows one OpenAI-compatible `base_url` (`/v1/completions`, streaming).
-Point it at vLLM today and at the Lifeline Gateway later. Every request carries:
+Point it at vLLM today and at the gateway later. Every request carries:
 
 | Header | Meaning |
 |---|---|
 | `X-Lifeline-Class` | `agentic` (interactive chat traffic will send `interactive`) |
-| `X-Lifeline-Workflow` | workflow id, shared by all calls of one question |
-| `X-Lifeline-Step` | `plan`, `reason.<round>`, `check.<round>` |
-| `X-Lifeline-Phase` | `think` or `answer` (a reasoning call is two requests) |
-| `X-Lifeline-Thinking-Budget` | thinking tokens allowed for this call |
+| `X-Lifeline-Workflow` | workflow id, shared by all calls of one problem |
+| `X-Lifeline-Step` | `plan`, `solve.<round>`, `verify.<round>` |
+| `X-Lifeline-Phase` | `think` or `answer` (a reasoning call is two or three requests) |
+| `X-Lifeline-Thinking-Budget` | thinking tokens allowed for this request |
 | `X-Lifeline-Deadline` | workflow deadline, epoch ms |
+| `X-Lifeline-Budget-Drop` | only on the think request after a drop: `at,to,notice` |
 | `X-Lifeline-Tier` | optional tier hint; the gateway may echo the tier it chose in the response header |
 
-The thinking budget is enforced client-side by budget forcing (Qwen3 chat format):
-the think phase stops at `</think>` or at the budget, then the answer phase is a second
-request on the same prefix (cheap with prefix caching). If the budget ran out, a short
-"give the answer now" line is inserted before `</think>`. This is the "cut budget" lever
-from the diagram: the controller can lower the budget of a later call without touching
-the agent.
+The header names and the `LIFELINE_*` environment variables keep their old prefix
+so teammates' `secrets.env` files and the gateway keep working.
+
+The thinking budget is enforced by budget forcing (Qwen3 chat format): the think
+phase stops at `</think>` or at the budget, then the answer phase is a second request
+on the same prefix (cheap with prefix caching).
 
 ## Running
 
 ```bash
 cd agent
-pip install -e .[test] && pytest -q
+pip install -e .[test,math] && pytest -q
 
-# two GPU boxes (rt + batch tier) running vLLM + Qwen3-8B; needs infra/vllm-ec2/secrets.env (see the top-level README)
+# two GPU boxes (rt + batch tier) running vLLM; needs infra/vllm-ec2/secrets.env (see the top-level README)
 eval "$(../infra/vllm-ec2/up.sh | sed 's/^/export /')"   # LIFELINE_BASE_URL points at the batch tier
 
-python -m lifeline_agent.run --index 0 -v            # one question, full trace
-python -m lifeline_agent.run --n 50 --out runs/solo  # solo calibration
-python -m lifeline_agent.loadgen --rate 0.1 --n 100 --solo-ref runs/solo/workflows.jsonl --only-ref
+python -m math_agent.run --index 0 -v                              # one problem, full trace
+python -m math_agent.run --n 50 --out runs/solo                     # solo calibration
+python -m math_agent.run --n 50 --drop-at 2048 --drop-to 512 --notice count --answer-mode final
+python -m math_agent.loadgen --rate 0.05 --n 100 --solo-ref runs/solo/workflows.jsonl --only-ref
 
-../infra/vllm-ec2/down.sh                            # stop both GPU boxes
+../infra/vllm-ec2/down.sh                                           # stop both GPU boxes
 ```
 
-FinQA is downloaded to `agent/data/` on first use. Each run writes `calls.jsonl`
-(one row per LLM call: tokens, TTFT, latency, budget, phases), `workflows.jsonl`
-(one row per question: answer, correctness, deadline met, totals) and `summary.json`.
+The servers run with an 8,192-token context (`MAX_MODEL_LEN` in
+`infra/vllm-ec2/config.env`). The default budgets (4,096 doubling to 6,144) fit
+that. AIME 2026 needs natural thinking of about 12.7k tokens (up to 40k), so raise
+`MAX_MODEL_LEN` and `--budget` / `--max-budget` before running it.
+
+Each run writes:
+- `calls.jsonl`: one row per LLM call (tokens, TTFT, latency, budget, phases, whether a drop happened and whether the model closed `</think>` itself)
+- `workflows.jsonl`: one row per problem (answer, correctness, deadline met, totals)
+- `summary.json`
 
 Load generator: open-loop Poisson arrivals at `--rate` workflows/s. Each workflow's
-deadline is `arrival + slack * (that question's solo latency)`, with slack drawn from
+deadline is `arrival + slack * (that problem's solo latency)`, with slack drawn from
 `--slack` (default `1.5,3,6`).
-
-## First results (2026-10-16)
-
-Full writeup and raw outputs: [`results/2026-10-16/`](results/2026-10-16/WRITEUP.md).
-
-One g5.xlarge (A10G 24 GB), vLLM 0.11.0, Qwen3-8B bf16, default config
-(k=8, thinking budget 1024 doubling to 4096, up to 3 rounds, confidence 0.7).
-Single-stream decode is about 27 tokens/s, so a 1024-token thought takes about 38 s.
-
-| Run | n | Accuracy (strict / lenient) | Latency p50 / p90 / p99 | Deadline met | Met, slack 1.5x |
-|---|---|---|---|---|---|
-| Solo (one at a time) | 50 | 0.38 / 0.52 | 40 / 166 / 264 s | n/a | n/a |
-| Load, 0.05 workflows/s | 100 | 0.42 / 0.52 | 44 / 133 / 195 s | 0.96 | 0.92 |
-| Load, 0.2 workflows/s | 100 | 0.43 / 0.54 | 59 / 171 / 336 s | 0.83 | 0.56 |
-
-Notes:
-- Per-workflow cost is very uneven (p90 is about 4x p50): hard questions exhaust the
-  budget, fail the check or the DSL, and go another round with a larger budget.
-- On one GPU, going from 0.05 to 0.2 workflows/s drops tight-deadline (1.5x) workflows
-  from 92% to 56% on time. That gap is what tiering and promotion should close.
-- The CHECK step is poorly calibrated: 43 of 53 solo checks answered 0.85 or 0.95, and
-  16 of 23 retries came from DSL errors rather than low confidence. That makes it a
-  candidate for Jev.
-- Common misses: the answer given as a percent instead of a fraction (counted by lenient
-  scoring), sign errors, and running out of thinking budget.
 
 ## Layout
 
 ```
-lifeline_agent/
-  datasets/      Example/Chunk types, scorer; finqa.py loader + per-filing corpus
-  dsl.py         FinQA program executor
-  retrieval.py   BM25
-  llm.py         completions client, headers, budget forcing, per-call timing
+math_agent/
+  datasets/      Example type; math.py loads MATH-500, AIME 2026, GSM8K
+  grading.py     \boxed{} extraction and answer matching
+  llm.py         completions client, headers, budget forcing, budget drop, final-answer mode
   prompts.py
   workflow.py    the state machine above
   run.py         sequential runs (trace / calibration)
   loadgen.py     open-loop load with deadlines
   metrics.py
-tests/           DSL + scorer; workflow against a fake streaming vLLM
+tests/           grading; workflow and budget levers against a fake streaming vLLM
+archive/finqa/   the earlier FinQA agent and its 2026-10-16 results (reference only)
 ```
-
-TAT-QA can be added as another module in `datasets/` that produces the same
-`Example`/`Chunk` types.

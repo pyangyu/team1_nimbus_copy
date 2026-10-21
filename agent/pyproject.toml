@@ -1,21 +1,24 @@
 [project]
-name = "lifeline-agent"
-version = "0.1.0"
-description = "Agentic workflow test agent for Lifeline (deadline-aware two-tier LLM serving)"
+name = "math-agent"
+version = "0.2.0"
+description = "Agentic math workflows that make thinking-budget reasoning requests, for deadline-aware LLM serving experiments"
 requires-python = ">=3.10"
 dependencies = ["httpx>=0.27"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+math = ["math-verify>=0.5"]
 
 [project.scripts]
-lifeline-run = "lifeline_agent.run:cli"
-lifeline-loadgen = "lifeline_agent.loadgen:cli"
+math-agent-run = "math_agent.run:cli"
+math-agent-loadgen = "math_agent.loadgen:cli"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["lifeline_agent*"]
+include = ["math_agent*"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]

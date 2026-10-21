@@ -1,13 +1,13 @@
 """OpenAI-compatible completions client with a hard thinking budget.
 
-Every call goes to one base_url. Today that is vLLM; later it is the Lifeline
-Gateway, which reads the X-Lifeline-* headers to track deadlines and pick a
+Every call goes to one base_url. Today that is vLLM; later it is the gateway,
+which reads the X-Lifeline-* headers to track deadlines and pick a
 tier. vLLM ignores them.
 
 Thinking budget (budget forcing, Qwen3 chat format):
   phase "think":  prompt + "<think>\\n", max_tokens=budget, stop at </think>
   phase "answer": prompt + thinking + "</think>\\n\\n", max_tokens=answer cap
-If the budget runs out mid-thought, a short wrap-up line is appended before
+If the budget runs out mid-thought, Qwen's early-stop line is appended before
 </think> so the model answers instead of continuing to reason. Budget 0 uses
 Qwen3's empty think block (non-thinking mode) and makes one request.
 """
@@ -19,7 +19,26 @@ from dataclasses import asdict, dataclass, field
 
 import httpx
 
-WRAP_UP = "\n\nConsidering the limited time, I have to give the answer now.\n"
+EARLY_STOP = ("\n\nConsidering the limited time by the user, I have to give the solution "
+              "based on the thinking directly now.\n")
+FINAL_PREFIX = "The final answer is \\boxed{"
+NOTICES = {
+    "none": "",
+    "soft": "\n\nWait, I'm running out of time. I need to wrap up my reasoning quickly and give the "
+            "final answer soon.\n",
+    "count": "\n\nI only have about {W} tokens of thinking left, so I must finish my reasoning quickly "
+             "and move to the final answer.\n",
+}
+
+
+@dataclass
+class BudgetDrop:
+    at: int
+    to: int
+    notice: str = "none"
+
+    def header(self) -> str:
+        return f"{self.at},{self.to},{self.notice}"
 
 
 @dataclass
@@ -56,6 +75,8 @@ class CallResult:
     thinking_tokens: int = 0
     answer_tokens: int = 0
     budget_exhausted: bool = False
+    dropped: bool = False
+    closed_itself: bool | None = None
     phases: list[Phase] = field(default_factory=list)
 
     def record(self) -> dict:
@@ -89,10 +110,13 @@ class LLMClient:
             self.model = r.json()["data"][0]["id"]
         return self.model
 
-    def _headers(self, meta: CallMeta, budget: int, phase: str) -> dict[str, str]:
+    def _headers(self, meta: CallMeta, budget: int, phase: str,
+                 drop: BudgetDrop | None = None) -> dict[str, str]:
         h = {"X-Lifeline-Class": meta.cls, "X-Lifeline-Workflow": meta.workflow_id,
              "X-Lifeline-Step": meta.step, "X-Lifeline-Phase": phase,
              "X-Lifeline-Thinking-Budget": str(budget)}
+        if drop is not None:
+            h["X-Lifeline-Budget-Drop"] = drop.header()
         if meta.deadline_ms is not None:
             h["X-Lifeline-Deadline"] = str(meta.deadline_ms)
         if meta.tier:
@@ -135,26 +159,44 @@ class LLMClient:
         return "".join(parts), ph
 
     async def generate(self, messages: list[dict], meta: CallMeta, *, think_budget: int,
-                       max_answer_tokens: int, temperature: float = 0.0) -> CallResult:
+                       max_answer_tokens: int, temperature: float = 0.0,
+                       answer_mode: str = "full", final_tokens: int = 48,
+                       drop: BudgetDrop | None = None) -> CallResult:
         base = render_chat(messages)
         res = CallResult(meta.workflow_id, meta.step, think_budget, text="", started_at=time.time())
         t0 = time.perf_counter()
         if think_budget <= 0:
             prefix = base + "<think>\n\n</think>\n\n"
         else:
-            thought, ph = await self._complete(base + "<think>\n", think_budget, ["</think>"],
+            first = min(think_budget, drop.at) if drop else think_budget
+            thought, ph = await self._complete(base + "<think>\n", first, ["</think>"],
                                                self._headers(meta, think_budget, "think"),
                                                "think", temperature)
             res.phases.append(ph)
-            res.thinking = thought
             res.thinking_tokens = ph.completion_tokens
-            res.budget_exhausted = ph.finish_reason == "length"
-            prefix = base + "<think>\n" + thought + (WRAP_UP if res.budget_exhausted else "") + "</think>\n\n"
-        text, ph = await self._complete(prefix, max_answer_tokens, ["<|im_end|>"],
+            exhausted = ph.finish_reason == "length"
+            if drop and exhausted and drop.at < think_budget:
+                res.dropped = True
+                thought += NOTICES[drop.notice].format(W=drop.to)
+                more, ph = await self._complete(base + "<think>\n" + thought, drop.to, ["</think>"],
+                                                self._headers(meta, drop.to, "think", drop),
+                                                "think", temperature)
+                res.phases.append(ph)
+                thought += more
+                res.thinking_tokens += ph.completion_tokens
+                exhausted = ph.finish_reason == "length"
+                res.closed_itself = not exhausted
+            res.thinking = thought
+            res.budget_exhausted = exhausted
+            prefix = base + "<think>\n" + thought + (EARLY_STOP if exhausted else "") + "</think>\n\n"
+        final = answer_mode == "final"
+        if final:
+            prefix += FINAL_PREFIX
+        text, ph = await self._complete(prefix, final_tokens if final else max_answer_tokens, ["<|im_end|>"],
                                         self._headers(meta, think_budget, "answer"),
                                         "answer", temperature)
         res.phases.append(ph)
-        res.text = text.strip()
+        res.text = (FINAL_PREFIX + text if final else text).strip()
         res.answer_tokens = ph.completion_tokens
         res.prompt_tokens = res.phases[0].prompt_tokens
         res.ttft_s = res.phases[0].ttft_s

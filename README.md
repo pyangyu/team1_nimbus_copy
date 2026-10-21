@@ -7,7 +7,7 @@ requests or cuts their thinking budget.
 
 | Component | Status | Where |
 |---|---|---|
-| Agentic workflow (test agent, FinQA) | first version | [`agent/`](agent/) |
+| Agentic workflow (math agent: MATH-500, AIME 2026, GSM8K) | first version | [`agent/`](agent/) (FinQA version in [`agent/archive/finqa/`](agent/archive/finqa/)) |
 | vLLM on EC2: two GPUs, one per tier (rt, batch) | scripts ready | [`infra/vllm-ec2/`](infra/vllm-ec2/) |
 | LifeLine Gateway | todo | |
 | RT tier / Batch tier (vLLM pods on Kubernetes) | todo | |
