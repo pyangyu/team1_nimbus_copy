@@ -9,6 +9,13 @@ if systemctl list-unit-files vllm.service >/dev/null 2>&1 && systemctl is-enable
   docker rm -f vllm >/dev/null 2>&1 || true
   echo "disabled the old vLLM service"
 fi
+if docker image ls -q vllm/vllm-openai 2>/dev/null | grep -q .; then
+  docker rm -f vllm >/dev/null 2>&1 || true
+  docker image rm -f "$(docker image ls -q vllm/vllm-openai)" >/dev/null || true
+  docker system prune -af >/dev/null || true
+  echo "removed the vLLM image"
+fi
+rm -rf /opt/hf/hub/models--Qwen--Qwen3-8B /opt/hf/xet
 if [[ ! -f $MARK ]]; then
   mkdir -p $JEV /opt/hf
   [[ -d $JEV/Open-Jev ]] || git clone -q https://github.com/Zefan-Cai/Open-Jev.git $JEV/Open-Jev
@@ -27,6 +34,7 @@ cfg = json.load(open("/opt/openjev/models/Open-Jev-2B/package/checkpoint/model.j
 s(cfg["model_id"], revision=cfg["revision"])
 print("downloaded", cfg["model_id"], cfg["revision"])
 PY
+  rm -rf /opt/hf/xet
   touch $MARK
   echo "installed Open-Jev $OPENJEV_COMMIT"
 fi
