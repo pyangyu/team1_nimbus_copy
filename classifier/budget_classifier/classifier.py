@@ -37,6 +37,28 @@ class _Pending:
     prompt: str
     bucket: int
     model: str | None
+    p_online: np.ndarray
+    p_jev: np.ndarray | None = None
+
+
+@dataclass
+class SourceScore:
+    n: int = 0
+    exact: int = 0
+    within_one: int = 0
+    under: int = 0
+    p_true: float = 0.0
+
+    def add(self, p: np.ndarray, k: int, t: int) -> None:
+        self.n += 1
+        self.exact += k == t
+        self.within_one += abs(k - t) <= 1
+        self.under += k < t
+        self.p_true += float(p[t])
+
+    def summary(self) -> dict:
+        return {"n": self.n, "exact": self.exact, "within_one": self.within_one, "under": self.under,
+                "p_true": round(self.p_true, 4)}
 
 
 @dataclass
@@ -44,6 +66,7 @@ class VersionStats:
     labels: int = 0
     censored: int = 0
     window: deque = field(default_factory=lambda: deque(maxlen=200))
+    paired: dict = field(default_factory=lambda: {"online": SourceScore(), "jev": SourceScore()})
 
     def summary(self) -> dict:
         w = list(self.window)
@@ -52,6 +75,7 @@ class VersionStats:
             "labels": self.labels,
             "censored": self.censored,
             "window": n,
+            "paired": {k: v.summary() for k, v in self.paired.items()},
             "exact": sum(p == t for p, t in w) / n if n else None,
             "within_one": sum(abs(p - t) <= 1 for p, t in w) / n if n else None,
             "under": sum(p < t for p, t in w) / n if n else None,
@@ -61,8 +85,8 @@ class VersionStats:
 
 class BudgetClassifier:
     def __init__(self, buckets: Buckets | None = None, *, dim: int = 1 << 18, lr: float = 0.5,
-                 spread: float = 0.5, jev: JevPrior | None = None, warmup: int = 200,
-                 jev_until: float = 0.95, examples: int = 4, quantile: float = 0.5,
+                 spread: float = 0.5, jev: JevPrior | None = None,
+                 examples: int = 4, quantile: float = 0.5,
                  censored: str = "update", active_at: float = 0.05, window: int = 200,
                  max_pending: int = 100_000, reset_on_upgrade: bool = True):
         if censored not in ("update", "skip"):
@@ -74,7 +98,7 @@ class BudgetClassifier:
         self.online = OnlineModel(self.buckets.n, dim=dim, lr=lr, spread=spread)
         self.memory = ExampleMemory()
         self.jev = jev
-        self.warmup, self.jev_until, self.examples = warmup, jev_until, examples
+        self.examples = examples
         self.quantile, self.censored, self.active_at = quantile, censored, active_at
         self.window, self.max_pending = window, max_pending
         self.reset_on_upgrade = reset_on_upgrade
@@ -83,6 +107,13 @@ class BudgetClassifier:
         self.current_model: str | None = None
         self.upgrades = 0
         self.pressure = 0.0
+
+    def reset(self) -> None:
+        self.online = OnlineModel(self.buckets.n, dim=self.dim, lr=self.online.lr, spread=self.online.spread)
+        self.memory = ExampleMemory()
+        self.pending.clear()
+        self.versions.clear()
+        self.current_model, self.upgrades = None, 0
 
     @property
     def shadow(self) -> bool:
@@ -109,28 +140,43 @@ class BudgetClassifier:
     def _pick(self, p: np.ndarray) -> int:
         return int(min(np.searchsorted(np.cumsum(p), self.quantile - 1e-9), self.buckets.n - 1))
 
-    async def predict(self, request_id: str, prompt: str, model: str | None = None,
-                      extra_questions: dict | None = None) -> Prediction:
+    def _prediction(self, request_id: str, p: np.ndarray, k: int, source: str, model: str | None,
+                    extra: dict | None = None) -> Prediction:
+        return Prediction(request_id, k, self.buckets.label(k), self.buckets.budget(k), round(float(p[k]), 4),
+                          source, self.shadow, model, [round(float(v), 4) for v in p], extra or {})
+
+    def predict_online(self, request_id: str, prompt: str, model: str | None = None) -> Prediction:
         self._switch(model)
         model = self.current_model
         x = featurize(prompt, self.dim)
         p = self.online.proba(x)
-        n = self._version(model).labels
-        w = n / (n + self.warmup) if self.warmup > 0 else 1.0
-        source = "online" if n else "cold"
-        extra: dict = {}
-        if self.jev is not None and w < self.jev_until:
-            pj, extra = await self.jev.ask_with(prompt, self.memory.similar(x, model, self.examples), extra_questions)
-            if pj is not None:
-                p = w * p + (1 - w) * pj
-                source = "blend" if n else "jev"
         k = self._pick(p)
-        self.pending[request_id] = _Pending(x, prompt, k, model)
+        self.pending[request_id] = _Pending(x, prompt, k, model, p)
         self.pending.move_to_end(request_id)
         while len(self.pending) > self.max_pending:
             self.pending.popitem(last=False)
-        return Prediction(request_id, k, self.buckets.label(k), self.buckets.budget(k), round(float(p[k]), 4),
-                          source, self.shadow, model, [round(float(v), 4) for v in p], extra)
+        return self._prediction(request_id, p, k, "online" if self._version(model).labels else "cold", model)
+
+    async def ask_jev(self, request_id: str, extra_questions: dict | None = None
+                      ) -> tuple[Prediction | None, dict]:
+        pend = self.pending.get(request_id)
+        if self.jev is None or pend is None:
+            return None, {}
+        pj, extra = await self.jev.ask_with(pend.prompt, self.memory.similar(pend.x, pend.model, self.examples),
+                                            extra_questions)
+        if pj is None or self.pending.get(request_id) is not pend:
+            return None, extra
+        pend.p_jev = pj
+        return self._prediction(request_id, pj, self._pick(pj), "jev", pend.model, extra), extra
+
+    async def predict(self, request_id: str, prompt: str, model: str | None = None,
+                      extra_questions: dict | None = None) -> Prediction:
+        pred = self.predict_online(request_id, prompt, model)
+        refined, extra = await self.ask_jev(request_id, extra_questions)
+        if refined is not None:
+            return refined
+        pred.extra = extra
+        return pred
 
     def observe(self, request_id: str, thinking_tokens: int, *, finished: bool = True,
                 model: str | None = None, prompt: str | None = None) -> dict:
@@ -149,6 +195,9 @@ class BudgetClassifier:
             stats.labels += 1
             if pend is not None:
                 stats.window.append((pend.bucket, k))
+                if pend.p_jev is not None:
+                    stats.paired["online"].add(pend.p_online, pend.bucket, k)
+                    stats.paired["jev"].add(pend.p_jev, self._pick(pend.p_jev), k)
             kind = "exact"
         else:
             stats.censored += 1

@@ -59,12 +59,12 @@ class FakeVLLM:
         return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=gen())
 
 
-def make(lengths=None, policy="brownout", notice="silent", jev=None, warmup=200, **kw):
+def make(lengths=None, policy="brownout", notice="silent", jev=None, predictor="jev", **kw):
     fake = FakeVLLM(lengths or {"easy": 50, "hard": 2000})
     http = httpx.AsyncClient(transport=httpx.MockTransport(fake.handler))
     monitor = PressureMonitor()
-    clf = BudgetClassifier(dim=1 << 12, jev=jev, warmup=warmup)
-    ctl = Controller(monitor, policy=policy, notice=notice, interval=0.002)
+    clf = BudgetClassifier(dim=1 << 12, jev=jev)
+    ctl = Controller(monitor, policy=policy, notice=notice, predictor=predictor, interval=0.002)
     gw = Gateway("http://vllm/v1", clf, ctl, monitor, upstream_key=KEY, client_key=KEY, http=http, **kw)
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(gw, background=False)),
                                base_url="http://gw", headers={"Authorization": f"Bearer {KEY}"})

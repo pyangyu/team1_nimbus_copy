@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import time
 
 LEVELS = ("low", "normal", "high")
@@ -45,40 +44,3 @@ def from_answer(answer: dict | None) -> str | None:
         return LEVELS[max(range(3), key=lambda i: float(probs[str(i)]))]
     except Exception:
         return None
-
-
-class PriorityRefiner:
-    def __init__(self, jev=None, *, max_inflight: int = 1, wait_tries: int = 40, wait_s: float = 0.25):
-        self.jev = jev
-        self.wait_tries, self.wait_s = wait_tries, wait_s
-        self.max_inflight = max_inflight
-        self.inflight = 0
-        self.asked = self.answered = self.dropped = 0
-
-    def refine(self, target, cls: str, step: str, deadline_ms: int | None, prompt: str) -> None:
-        if self.jev is None:
-            return
-        if self.inflight >= self.max_inflight:
-            self.dropped += 1
-            return
-        self.inflight += 1
-        asyncio.get_running_loop().create_task(self._ask(target, cls, step, deadline_ms, prompt))
-
-    async def _ask(self, target, cls, step, deadline_ms, prompt) -> None:
-        self.asked += 1
-        try:
-            for _ in range(self.wait_tries):
-                if self.jev.inflight < self.jev.max_inflight:
-                    break
-                await asyncio.sleep(self.wait_s)
-            answers = await self.jev.post({"request": {"prompt_head": prompt[:1500]}},
-                                          {"priority": question(cls, step, deadline_ms)})
-        finally:
-            self.inflight -= 1
-        level = from_answer((answers or {}).get("priority"))
-        if level is not None:
-            self.answered += 1
-            target.set_priority(level, "jev")
-
-    def stats(self) -> dict:
-        return {"asked": self.asked, "answered": self.answered, "dropped_busy": self.dropped}

@@ -54,23 +54,31 @@ The policy sweep is controlled by environment variables on the agent box. They a
 
 | Variable | Default |
 |---|---|
-| `BROWNOUT_POLICIES` | `none,reject,uniform,brownout,brownout:announced` |
+| `BROWNOUT_POLICIES` | `none,reject,uniform,brownout:silent:jev,brownout:announced:jev,brownout:announced:jev-serial,brownout:announced:online,brownout:announced:oracle,brownout:announced:jev-learn` (`policy:notice:predictor`: `jev` = untrained Jev beside the LLM, `jev-serial` = untrained Jev before the LLM, `online` = the word model, `oracle` = the thinking length the same prompt used in an earlier uncut run (an upper bound; run `none` first), `jev-learn` = trained Jev, skipped until its learner is deployed) |
 | `BROWNOUT_N` | `64` |
 | `BROWNOUT_RATE` | `4.0` workflows/s (24 at 1/s never queued on one A10G) |
-| `BROWNOUT_DATASET` | `gsm8k` |
+| `BROWNOUT_DATASET` | `gsm8k` (budget 1024, up to 2048) |
+| `BROWNOUT_HARD_DATASET` | `math500` (second sweep, budget 4096, up to 6144; empty skips it) |
+| `BROWNOUT_HARD_POLICIES` | `none,uniform,brownout:announced:jev,brownout:announced:jev-serial,brownout:announced:online,brownout:announced:oracle` |
+| `BROWNOUT_HARD_N`, `BROWNOUT_HARD_RATE` | `32`, `2.0` workflows/s |
 | `BROWNOUT_REJECT_WAITING` | `2` (`defer` only) |
 | `BROWNOUT_ADMIT_RATE` | `0.25` new workflows/s (`reject`) |
 | `BROWNOUT_ADMIT_BURST` | `8` (`reject`) |
 
-Accuracy and deadline numbers are reported in `results.md`, not asserted. The test does
-assert these:
+Each run starts from a reset classifier (word model, Jev examples, stats), so no predictor
+benefits from the runs before it. Accuracy and deadline numbers are reported in
+`results.md`, not asserted. The test does assert these:
 - every think request was observed by the classifier
 - no upstream errors
 - `none` never cuts or rejects
 - the cutting policies cut once there was pressure
 - only `reject` rejects, and it does reject when the arrivals exceed the bucket
 - Jev answered at least once
+- outside `reject`, Jev answered some requests before they finished, so the word model and Jev
+  are scored on the same requests (`paired_n`, then exact, within-one and under-prediction
+  rates for each in `results.md`)
+- `jev-serial` waited for Jev on every think request, and Jev answered before the first token
 
 CI runs the `brownout-e2e` job after the `aws` job, on push to main and on
 `workflow_dispatch`. It uses the same OIDC role and stops only the boxes it started.
-A run costs roughly $2: two A10Gs for about an hour.
+A run costs roughly $5: two A10Gs for about two and a half hours. The CI role's session lasts 4 hours (`setup_iam.sh`).

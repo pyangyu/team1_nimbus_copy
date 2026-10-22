@@ -13,4 +13,5 @@ if ! aws iam get-instance-profile --instance-profile-name "$PROFILE_NAME" >/dev/
   aws iam add-role-to-instance-profile --instance-profile-name "$PROFILE_NAME" --role-name "$PROFILE_NAME"
 fi
 aws iam put-role-policy --role-name capstone-github-ci --policy-name brownout-e2e --policy-document file://iam/ci-brownout.json
+aws iam update-role --role-name capstone-github-ci --max-session-duration 14400
 echo "IAM ready: instance profile $PROFILE_NAME, CI policy brownout-e2e" >&2

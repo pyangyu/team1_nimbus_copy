@@ -124,7 +124,7 @@ jobs:
     needs: [test, aws]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 230
     concurrency:
       group: aws-gpu
       cancel-in-progress: false
@@ -141,8 +141,14 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::826671498662:role/capstone-github-ci
           aws-region: us-east-1
+          role-duration-seconds: 14400
       - name: Start the boxes, set up Open-Jev, deploy, sweep the policies
         run: infra/brownout/e2e.sh "${{ github.sha }}"
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: always()
+        with:
+          role-to-assume: arn:aws:iam::826671498662:role/capstone-github-ci
+          aws-region: us-east-1
       - name: Stop the boxes this run started
         if: always()
         run: |

@@ -1,15 +1,15 @@
 # Budget classifier
 
-Piece 1 of Thinking Brownout. At the door, it predicts how long each request will
-think, as one of ten literal buckets. The budget controller scales that budget when
-the queue backs up. The classifier learns online: every finished request's actual
-thinking length is a free label, so it starts cold and follows model upgrades
-without an offline dataset.
+Piece 1 of Thinking Brownout. It predicts how long each request will think, as one of
+ten literal buckets. The budget controller scales that budget when the queue backs up.
+Jev makes the prediction; an online word model makes its own beside it as the comparison
+point. Every finished request's actual thinking length is a free label: it trains the
+word model, calibrates Jev (as in-context examples), and scores both on the same requests.
 
 ```
 request ──> /v1/predict ──> bucket + budget (logged; enforced only under pressure)
                 ^
-                | features of the prompt -> online softmax (+ Jev while cold)
+                | Jev (prediction) + features of the prompt -> online softmax (comparison)
 finished ──> /v1/observe (thinking tokens used, finished or cut) ──> one online update
 ```
 
@@ -25,16 +25,21 @@ buckets are allowed, because a Jev `score` question takes at most 10 levels.
 
 ## How it predicts
 
-1. **Online model.** Hashed word and bigram features of the prompt, plus length and
+1. **Online word model (comparison).** Hashed word and bigram features of the prompt, plus length and
    digit-count features, go into a softmax over the buckets. It is trained by AdaGrad,
    one step per labeled request. Targets are soft over neighboring buckets, since being
-   one bucket off is a small error.
-2. **Jev while cold.** If a Jev endpoint is configured (hosted Jev or a local Open-Jev,
+   one bucket off is a small error. It never sets budgets in the gateway unless the
+   gateway runs with `--predictor online`.
+2. **Jev on every request (the prediction).** If a Jev endpoint is configured (hosted Jev or a local Open-Jev,
    same `/v1/systemone` wire format), it asks one `score` question with the ten buckets
    as levels. The state includes the prompt and the most similar recent finished requests
-   with the thinking tokens they used, so Jev also calibrates to the live model. The two
-   distributions are mixed with weight `n / (n + warmup)` on the online model (`n` = labels
-   for the current model). Jev is no longer called once that weight passes `jev_until`.
+   with the thinking tokens they used, so Jev also calibrates to the live model.
+   `predict_online` answers at once from the word model; `ask_jev` asks Jev for the same
+   request later (the gateway runs it beside the LLM's prefill). `predict` does both and
+   returns Jev's answer, or the word model's if Jev failed. The two are never mixed.
+   For each finished request that both predicted, `paired` in the stats counts exact,
+   within-one and under-predicted buckets and the probability given to the true bucket,
+   for each source.
 3. **Pick.** The bucket is the `quantile` point of the distribution (default 0.5, the
    median). Raise it to under-cut less often.
 
@@ -61,10 +66,10 @@ model B, and plot accuracy over the requests after the switch (`replay`, below).
 
 | Endpoint | Body | Returns |
 |---|---|---|
-| `POST /v1/predict` | `request_id`, `prompt`, optional `model` | `bucket`, `label`, `budget`, `confidence`, `source` (`cold`, `jev`, `blend`, `online`), `shadow`, `probs` |
+| `POST /v1/predict` | `request_id`, `prompt`, optional `model` | `bucket`, `label`, `budget`, `confidence`, `source` (`cold`, `online`, `jev`), `shadow`, `probs` |
 | `POST /v1/observe` | `request_id`, `thinking_tokens`, `finished` (default true), optional `model`, `prompt` | the label used |
 | `POST /v1/pressure` | `p` | `pressure`, `shadow` |
-| `GET /v1/stats` | | per model version: labels, censored, rolling exact and within-one-bucket accuracy, under-prediction rate |
+| `GET /v1/stats` | | per model version: labels, censored, rolling exact and within-one-bucket accuracy, under-prediction rate, mean probability each source gave the true bucket, Jev's weight |
 | `POST /v1/save` | | writes `--state` (also every `--save-every` observations and on shutdown) |
 
 ```

@@ -29,11 +29,10 @@ def test_request_is_a_ten_level_score_question():
     assert p.argmax() == 7 and abs(p.sum() - 1) < 1e-9
 
 
-def test_jev_drives_cold_start_then_fades():
+def test_jev_is_asked_every_call_and_scored_beside_the_online_model():
     seen = []
-    clf = BudgetClassifier(dim=1 << 14, warmup=20, jev_until=0.9,
-                           jev=JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev(seen)))
-    rows = list(workload(400))
+    clf = BudgetClassifier(dim=1 << 14, jev=JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev(seen, 1)))
+    rows = [r for r in workload(600) if r["prompt"].startswith("What is")][:60]
 
     async def go():
         sources = []
@@ -42,10 +41,23 @@ def test_jev_drives_cold_start_then_fades():
             clf.observe(r["id"], r["thinking_tokens"], model=r["model"])
         return sources
     sources = asyncio.run(go())
-    assert sources[0] == "jev" and sources[1] == "blend" and sources[-1] == "online"
-    assert len(seen) < len(rows)
+    assert set(sources) == {"jev"} and len(seen) == len(rows)
+    paired = clf.stats()["versions"]["m1"]["paired"]
+    assert paired["jev"]["n"] == paired["online"]["n"] == len(rows)
+    assert paired["jev"]["exact"] == len(rows) > paired["online"]["exact"]
     examples = seen[-1]["state"]["recent_requests"]
     assert examples and {"prompt", "thinking_tokens_used", "bucket"} <= examples[0].keys()
+
+
+def test_predict_online_never_waits_for_jev():
+    seen = []
+    clf = BudgetClassifier(dim=1 << 12, jev=JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev(seen)))
+    pred = clf.predict_online("a", "What is 2 + 2?", "m1")
+    assert pred.source == "cold" and not seen
+    refined, _ = asyncio.run(clf.ask_jev("a"))
+    assert refined.bucket == 7 and len(seen) == 1
+    clf.observe("a", 50, model="m1")
+    assert asyncio.run(clf.ask_jev("a")) == (None, {}) and len(seen) == 1
 
 
 def test_jev_failure_falls_back():

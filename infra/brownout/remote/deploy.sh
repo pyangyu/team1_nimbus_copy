@@ -21,7 +21,7 @@ if [[ $ROLE == jev ]]; then
 After=network-online.target open-jev.service
 [Service]
 EnvironmentFile=/etc/brownout-gateway.env
-ExecStart=$PY -m brownout_gateway.cli --upstream $UPSTREAM --host 0.0.0.0 --port 9000 --jev-url http://127.0.0.1:8791/v1/systemone --warmup ${BROWNOUT_WARMUP:-20} --state /var/lib/brownout/classifier.npz --log /var/lib/brownout/gateway.jsonl
+ExecStart=$PY -m brownout_gateway.cli --upstream $UPSTREAM --host 0.0.0.0 --port 9000 --jev-url http://127.0.0.1:8791/v1/systemone --state /var/lib/brownout/classifier.npz --log /var/lib/brownout/gateway.jsonl
 Restart=always
 [Install]
 WantedBy=multi-user.target

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 import uuid
@@ -18,8 +19,9 @@ from starlette.routing import Route
 from budget_classifier import BudgetClassifier
 
 from .controller import Active, Controller
+from .jevq import JevScheduler
 from .pressure import PressureMonitor
-from .priority import PriorityRefiner, from_answer, heuristic, question
+from .priority import heuristic
 
 DEFAULT_NOTICE = "\n\n<budget_cut left={N}>\n"
 
@@ -31,16 +33,17 @@ def sse(ev: dict | str) -> str:
 class Gateway:
     def __init__(self, upstream: str, clf: BudgetClassifier, controller: Controller, monitor: PressureMonitor, *,
                  upstream_key: str | None = None, client_key: str | None = None,
-                 refiner: PriorityRefiner | None = None, log_path: str | Path | None = None,
+                 log_path: str | Path | None = None,
                  reject_waiting: float = 8, defer_timeout: float = 60.0, defer_poll: float = 0.25,
                  admit_rate: float = 0.25, admit_burst: float = 8, clock=time.monotonic,
-                 notice_text: str = DEFAULT_NOTICE, http: httpx.AsyncClient | None = None):
+                 notice_text: str = DEFAULT_NOTICE, serial_timeout: float = 10.0,
+                 http: httpx.AsyncClient | None = None):
         self.upstream = upstream.rstrip("/")
         self.clf, self.controller, self.monitor = clf, controller, monitor
-        self.refiner = refiner or PriorityRefiner(clf.jev)
+        self.jevq = JevScheduler(clf, controller, concurrency=clf.jev.max_inflight if clf.jev else 1)
         self.upstream_key, self.client_key = upstream_key, client_key
         self.reject_waiting, self.defer_timeout, self.defer_poll = reject_waiting, defer_timeout, defer_poll
-        self.notice_text = notice_text
+        self.notice_text, self.serial_timeout = notice_text, serial_timeout
         self.admit_rate, self.admit_burst, self.clock = admit_rate, admit_burst, clock
         self.refill()
         self.http = http or httpx.AsyncClient(timeout=httpx.Timeout(900.0, connect=10.0),
@@ -49,10 +52,12 @@ class Gateway:
         if log_path:
             Path(log_path).parent.mkdir(parents=True, exist_ok=True)
             self.log = open(log_path, "a", encoding="utf-8")
+        self.oracle: dict[str, int] = {}
         self.admitted: OrderedDict[str, float] = OrderedDict()
         self.max_admitted = 100_000
         self.counts = {"requests": 0, "think": 0, "passthrough": 0, "rejected": 0, "deferred": 0,
-                       "deferred_s": 0.0, "cut": 0, "announced": 0, "upstream_errors": 0}
+                       "deferred_s": 0.0, "cut": 0, "announced": 0, "upstream_errors": 0,
+                       "serial_waits": 0, "serial_wait_s": 0.0, "oracle_hits": 0, "oracle_misses": 0}
 
     def _up_headers(self, h: dict[str, str]) -> dict[str, str]:
         out = {k: v for k, v in h.items() if k.startswith("x-lifeline")}
@@ -134,15 +139,30 @@ class Gateway:
         prompt = body["prompt"]
         requested = int(body.get("max_tokens") or h.get("x-lifeline-thinking-budget") or 4096)
         rid = f"{wf}:{step}:{uuid.uuid4().hex[:8]}"
-        extra = {"priority": question(cls, step, dl)} if self.clf.jev is not None else None
-        pred = await self.clf.predict(rid, prompt, body.get("model"), extra_questions=extra)
-        a = Active(rid, requested, pred.budget, heuristic(cls, step, dl), requested)
-        level = from_answer(pred.extra.get("priority"))
-        if level is not None:
-            a.set_priority(level, "jev")
-        elif self.controller.policy == "brownout":
-            self.refiner.refine(a, cls, step, dl, prompt)
+        pred = self.clf.predict_online(rid, prompt, body.get("model"))
+        key = hashlib.sha256(prompt.encode()).hexdigest()
+        prio = heuristic(cls, step, dl)
+        if self.controller.predictor == "oracle":
+            known = self.oracle.get(key)
+            self.counts["oracle_hits" if known is not None else "oracle_misses"] += 1
+            k = self.clf.buckets.index(known) if known is not None else None
+            a = Active(rid, requested, requested if k is None else self.clf.buckets.budget(k), prio, requested,
+                       tier="unknown" if k is None else self.clf.buckets.label(k))
+        elif self.controller.predictor == "online" or self.clf.jev is None:
+            a = Active(rid, requested, pred.budget, prio, requested, tier=pred.label)
+        else:
+            a = Active(rid, requested, requested, prio, requested, tier="pending")
         self.controller.start(a)
+        answered = self.jevq.submit(a, cls, step, dl)
+        if self.controller.predictor == "jev-serial" and answered is not None:
+            t1 = time.perf_counter()
+            try:
+                await asyncio.wait_for(asyncio.shield(answered), self.serial_timeout)
+            except asyncio.TimeoutError:
+                pass
+            self.counts["serial_waits"] += 1
+            self.counts["serial_wait_s"] += time.perf_counter() - t1
+            self.controller.start(a)
         first = a.limit
         up = {**body, "max_tokens": a.limit, "stream": True,
               "stream_options": {"include_usage": True, "continuous_usage_stats": True}}
@@ -155,9 +175,9 @@ class Gateway:
             self.clf.pending.pop(rid, None)
             return Response(content, status_code=r.status_code, media_type=r.headers.get("content-type"))
         meta = {"rid": rid, "workflow": wf, "step": step, "class": cls, "model": body.get("model"),
-                "requested": requested, "tier": pred.label, "tier_budget": pred.budget, "source": pred.source,
-                "first_limit": first, "p_start": round(self.monitor.p, 3), "t0": t0, "prompt": prompt}
-        headers = {"X-Lifeline-Tier": pred.label, "X-Lifeline-Priority": a.priority,
+                "requested": requested, "online_tier": pred.label, "online_budget": pred.budget, "source": pred.source,
+                "first_limit": first, "p_start": round(self.monitor.p, 3), "t0": t0, "prompt": prompt, "key": key}
+        headers = {"X-Lifeline-Tier": a.tier, "X-Lifeline-Priority": a.priority,
                    "X-Lifeline-Budget": str(first)}
         return StreamingResponse(self._stream(a, up, h, r, meta), media_type="text/event-stream", headers=headers)
 
@@ -222,7 +242,9 @@ class Gateway:
                     cut, finish = True, "length"
                     break
             finish = finish or "length"
-            info = {"tier": meta["tier"], "priority": a.priority, "priority_source": a.priority_source,
+            info = {"tier": a.tier, "online_tier": meta["online_tier"], "jev_tier": a.jev_tier, "jev_at": a.jev_at,
+                    "predictor": self.controller.predictor, "priority": a.priority,
+                    "priority_source": a.priority_source,
                     "budget": meta["first_limit"], "limit": a.limit, "cut": cut or announced,
                     "cut_from": a.cut_from, "announced": announced, "policy": self.controller.policy}
             yield sse({"object": "text_completion", "choices": [{"index": 0, "text": "", "finish_reason": finish}]})
@@ -235,14 +257,18 @@ class Gateway:
             await r.aclose()
             self.controller.finish(a)
             natural = finish == "stop" and not cut and not announced
+            if natural:
+                self.oracle[meta["key"]] = a.used
             obs = self.clf.observe(a.rid, a.used, finished=natural, model=meta["model"])
             if self.log is not None:
-                row = {**{k: v for k, v in meta.items() if k != "t0"}, "ts": meta["t0"],
+                row = {**{k: v for k, v in meta.items() if k not in ("t0", "key")}, "ts": meta["t0"],
                        "latency_s": round(time.time() - meta["t0"], 3), "used": a.used, "finish": finish,
                        "natural": natural, "cut": cut, "announced": announced, "limit": a.limit,
                        "cut_from": a.cut_from, "priority": a.priority, "priority_source": a.priority_source,
                        "p_end": round(self.monitor.p, 3), "policy": self.controller.policy,
-                       "notice": self.controller.notice, "observed": obs.get("label")}
+                       "notice": self.controller.notice, "observed": obs.get("label"),
+                       "tier": a.tier, "tier_budget": a.tier_budget, "jev_tier": a.jev_tier, "jev_at": a.jev_at,
+                       "predictor": self.controller.predictor}
                 self.log.write(json.dumps(row) + "\n")
                 self.log.flush()
 
@@ -257,7 +283,8 @@ class Gateway:
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
         body = await request.json()
         try:
-            self.controller.set_policy(body.get("policy", self.controller.policy), body.get("notice"))
+            self.controller.set_policy(body.get("policy", self.controller.policy), body.get("notice"),
+                                       body.get("predictor"))
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
         if "reject_waiting" in body:
@@ -266,16 +293,20 @@ class Gateway:
             self.admit_rate = float(body["admit_rate"])
         if "admit_burst" in body:
             self.admit_burst = float(body["admit_burst"])
+        if body.get("reset"):
+            self.clf.reset()
         self.refill()
         self.admitted.clear()
         return JSONResponse(self.controller.stats())
 
     def stats(self) -> dict:
         return {"gateway": {**self.counts, "deferred_s": round(self.counts["deferred_s"], 2),
+                            "serial_wait_s": round(self.counts["serial_wait_s"], 3),
+                            "oracle_prompts": len(self.oracle),
                             "reject_waiting": self.reject_waiting, "admit_rate": self.admit_rate,
                             "admit_burst": self.admit_burst},
                 "controller": self.controller.stats(), "pressure": self.monitor.stats(),
-                "priority": self.refiner.stats(), "classifier": self.clf.stats()}
+                "jev": self.jevq.stats(), "classifier": self.clf.stats()}
 
 
 def create_app(gw: Gateway, *, state_path: str | Path | None = None, background: bool = True) -> Starlette:

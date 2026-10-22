@@ -18,7 +18,7 @@ def build(args: argparse.Namespace) -> BudgetClassifier:
     if args.jev_url:
         jev = JevPrior(buckets, args.jev_url, api_key=os.environ.get(args.jev_key_env) or None,
                        model=args.jev_model, timeout=args.jev_timeout)
-    clf = BudgetClassifier(buckets, jev=jev, warmup=args.warmup, quantile=args.quantile,
+    clf = BudgetClassifier(buckets, jev=jev, quantile=args.quantile,
                            censored=args.censored, active_at=args.active_at,
                            reset_on_upgrade=not args.no_reset_on_upgrade)
     if args.state and Path(args.state).exists():
@@ -62,7 +62,6 @@ def cli(argv: list[str] | None = None) -> None:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--state", help="npz file to load at start and save to")
     common.add_argument("--edges", help=f"bucket edges, default {','.join(map(str, DEFAULT_EDGES))}")
-    common.add_argument("--warmup", type=int, default=200)
     common.add_argument("--quantile", type=float, default=0.5)
     common.add_argument("--censored", choices=["update", "skip"], default="update")
     common.add_argument("--active-at", type=float, default=0.05)

@@ -5,10 +5,12 @@ import httpx
 import pytest
 
 from brownout_gateway.pressure import parse_metrics, pressure
-from brownout_gateway.priority import PriorityRefiner, heuristic
+from brownout_gateway.jevq import JevScheduler
+from brownout_gateway.priority import heuristic
 from brownout_gateway import create_app
-from brownout_gateway.controller import Active
-from budget_classifier import Buckets, JevPrior
+from brownout_gateway.controller import Active, Controller
+from brownout_gateway.pressure import PressureMonitor
+from budget_classifier import BudgetClassifier, Buckets, JevPrior
 from conftest import KEY, body, make, parse, think_headers
 
 
@@ -196,27 +198,123 @@ def fake_jev(seen, tier=3, prio=0):
     return httpx.MockTransport(handler)
 
 
+def fake_jev_slow(seen, delay, **kw):
+    inner = fake_jev(seen, **kw)
+
+    async def handler(req):
+        await asyncio.sleep(delay)
+        return inner.handler(req)
+    return httpx.MockTransport(handler)
+
+
 def test_jev_answers_tier_and_priority_in_one_call(run):
     seen = []
     jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev(seen, tier=3, prio=0))
     gw, fake, c = make(jev=jev)
     r = run(c.post("/v1/completions", json=body("easy"), headers=think_headers()))
     assert len(seen) == 1 and set(seen[0]["questions"]) == {"tier", "priority"}
-    assert r.headers["x-lifeline-tier"] == "256-512" and r.headers["x-lifeline-priority"] == "low"
-    assert parse(r)["info"]["priority_source"] == "jev"
+    info = parse(r)["info"]
+    assert r.headers["x-lifeline-tier"] == "pending" and info["predictor"] == "jev"
+    assert info["tier"] == info["jev_tier"] == "256-512" and info["online_tier"] in gw.clf.buckets.labels()
+    assert info["priority"] == "low" and info["priority_source"] == "jev" and info["jev_at"] is not None
 
 
-def test_refiner_updates_priority_in_background(run):
+def test_online_predictor_sets_budgets_and_jev_only_shadows(run):
     seen = []
-    jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev(seen, prio=2))
-    ref = PriorityRefiner(jev)
-    a = Active("r", 1000, 1000, "normal", 1000)
+    jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev(seen, tier=3, prio=0))
+    gw, fake, c = make(jev=jev, predictor="online")
+    r = run(c.post("/v1/completions", json=body("easy"), headers=think_headers()))
+    info = parse(r)["info"]
+    assert len(seen) == 1 and info["predictor"] == "online" and info["jev_tier"] == "256-512"
+    assert info["tier"] == info["online_tier"] == r.headers["x-lifeline-tier"] != "256-512"
+    assert info["priority"] == "normal" and info["priority_source"] == "heuristic"
+    paired = gw.clf.stats()["versions"]["fake"]["paired"]
+    assert paired["online"]["n"] == paired["jev"]["n"] == 1
+
+
+def test_jev_runs_beside_decode_and_cuts_mid_flight(run):
+    seen = []
+    jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev_slow(seen, 0.03, tier=2, prio=1))
+    gw, fake, c = make(jev=jev)
+    gw.monitor.set(2, 4)
     async def go():
-        ref.refine(a, "agentic", "solve.1", None, "prompt")
-        ref.refine(Active("s", 1, 1, "normal", 1), "agentic", "solve.1", None, "prompt")
-        await asyncio.sleep(0.05)
+        t = asyncio.create_task(gw.controller.run())
+        r = await c.post("/v1/completions", json=body("hard"), headers=think_headers())
+        t.cancel()
+        return r
+    r = run(go())
+    out = parse(r)
+    assert r.headers["x-lifeline-tier"] == "pending" and out["info"]["budget"] == 500
+    assert out["info"]["tier"] == "128-256" and out["info"]["jev_at"] > 0 and out["info"]["cut"]
+    assert out["usage"]["completion_tokens"] < 300 < 500
+    st = gw.jevq.stats()
+    assert st["during_decode"] == 1 and st["tier_lowered"] == 1 and st["before_first_token"] == 0
+
+
+def test_jev_serial_sets_the_budget_before_vllm_sees_the_request(run):
+    seen = []
+    jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev_slow(seen, 0.03, tier=2, prio=1))
+    gw, fake, c = make(jev=jev, predictor="jev-serial")
+    gw.monitor.set(2, 4)
+    r = run(c.post("/v1/completions", json=body("hard"), headers=think_headers()))
+    out = parse(r)
+    assert r.headers["x-lifeline-tier"] == "128-256" and out["info"]["jev_at"] == 0
+    assert fake.requests[0]["body"]["max_tokens"] == 128 and out["usage"]["completion_tokens"] == 128
+    assert gw.counts["serial_waits"] == 1 and gw.counts["serial_wait_s"] >= 0.03
+    assert gw.jevq.stats()["before_first_token"] == 1
+
+
+def test_jev_serial_gives_up_after_the_timeout(run):
+    seen = []
+    jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev_slow(seen, 0.3, tier=2), timeout=1.0)
+    gw, fake, c = make(jev=jev, predictor="jev-serial", serial_timeout=0.02)
+    r = run(c.post("/v1/completions", json=body("easy"), headers=think_headers()))
+    assert r.status_code == 200 and r.headers["x-lifeline-tier"] == "pending"
+    assert gw.counts["serial_waits"] == 1 and gw.counts["serial_wait_s"] < 0.2
+
+
+def test_oracle_uses_the_length_from_an_uncut_run(run):
+    gw, fake, c = make(policy="none")
+    run(c.post("/v1/completions", json=body("easy"), headers=think_headers()))
+    run(c.post("/admin/policy", json={"policy": "brownout", "predictor": "oracle", "reset": True}))
+    gw.monitor.set(2, 4)
+    hit = run(c.post("/v1/completions", json=body("easy"), headers=think_headers(wf="w2")))
+    miss = run(c.post("/v1/completions", json=body("hard"), headers=think_headers(wf="w3")))
+    assert hit.headers["x-lifeline-tier"] == "32-128" and parse(hit)["info"]["budget"] == 64
+    assert miss.headers["x-lifeline-tier"] == "unknown" and parse(miss)["info"]["budget"] == 500
+    assert gw.counts["oracle_hits"] == 1 and gw.counts["oracle_misses"] == 1 and gw.stats()["gateway"]["oracle_prompts"] == 1
+
+
+def test_reset_forgets_learned_state(run):
+    gw, fake, c = make()
+    run(c.post("/v1/completions", json=body("easy"), headers=think_headers()))
+    assert gw.clf.stats()["versions"]["fake"]["labels"] == 1 and gw.clf.memory.items
+    run(c.post("/admin/policy", json={"policy": "brownout", "reset": True}))
+    assert gw.clf.stats()["versions"] == {} and not gw.clf.memory.items and not gw.clf.online.W.any()
+
+
+def test_jev_queue_serves_waiting_requests_first(run):
+    seen = []
+    jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev_slow(seen, 0.02))
+    clf = BudgetClassifier(dim=1 << 12, jev=jev)
+    ctl = Controller(PressureMonitor())
+    q = JevScheduler(clf, ctl)
+    acts = {}
+    for name in ("first", "decoding", "waiting", "finished"):
+        clf.predict_online(name, f"prompt {name}", "m")
+        acts[name] = ctl.start(Active(name, 1000, 1000, "normal", 1000))
+    async def go():
+        q.submit(acts["first"], "agentic", "solve.0", None)
+        for name in ("decoding", "waiting", "finished"):
+            q.submit(acts[name], "agentic", "solve.0", None)
+        acts["decoding"].used = 40
+        ctl.finish(acts["finished"])
+        await asyncio.sleep(0.15)
     run(go())
-    assert a.priority == "high" and a.priority_source == "jev" and ref.stats() == {"asked": 1, "answered": 1, "dropped_busy": 1}
+    order = [b["state"]["request"]["prompt_head"].split()[-1] for b in seen]
+    assert order == ["first", "waiting", "decoding"]
+    st = q.stats()
+    assert st["dropped_finished"] == 1 and st["before_first_token"] == 2 and st["during_decode"] == 1
 
 
 def test_admin_auth_and_stats(run):
@@ -224,17 +322,19 @@ def test_admin_auth_and_stats(run):
     async def go():
         bad = await c.post("/v1/completions", json=body("easy"), headers={"Authorization": "Bearer nope"})
         sw = await c.post("/admin/policy", json={"policy": "uniform", "notice": "announced", "reject_waiting": 3,
-                                                 "admit_rate": 1.5, "admit_burst": 4})
+                                                 "admit_rate": 1.5, "admit_burst": 4, "predictor": "online"})
+        badp = await c.post("/admin/policy", json={"policy": "uniform", "predictor": "nope"})
         inv = await c.post("/admin/policy", json={"policy": "nope"})
         models = await c.get("/v1/models")
         st = await c.get("/v1/stats")
-        return bad, sw, inv, models, st
-    bad, sw, inv, models, st = run(go())
-    assert bad.status_code == 401 and inv.status_code == 400
+        return bad, sw, inv, models, st, badp
+    bad, sw, inv, models, st, badp = run(go())
+    assert bad.status_code == 401 and inv.status_code == 400 and badp.status_code == 400
+    assert sw.json()["predictor"] == "online"
     assert sw.json()["policy"] == "uniform" and sw.json()["notice"] == "announced" and gw.reject_waiting == 3
     assert gw.admit_rate == 1.5 and gw.admit_burst == 4 and gw.tokens == 4
     assert models.json()["data"][0]["id"] == "fake"
-    assert {"gateway", "controller", "pressure", "priority", "classifier"} <= st.json().keys()
+    assert {"gateway", "controller", "pressure", "jev", "classifier"} <= st.json().keys()
 
 
 def test_upstream_error_is_returned(run):
@@ -285,21 +385,6 @@ def test_admitted_workflow_is_never_rejected_midway(run):
     later = run(c.post("/v1/completions", json=body("easy"), headers=think_headers(step="verify.0", wf="early")))
     new = run(c.post("/v1/completions", json=body("easy"), headers=think_headers(wf="late")))
     assert first.status_code == 200 and later.status_code == 200 and new.status_code == 429
-
-
-def test_refiner_waits_for_busy_jev(run):
-    seen = []
-    jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev(seen, prio=2))
-    ref = PriorityRefiner(jev, wait_s=0.01)
-    a = Active("r", 1000, 1000, "normal", 1000)
-    async def go():
-        jev.inflight = 1
-        ref.refine(a, "agentic", "solve.0", None, "prompt")
-        await asyncio.sleep(0.05)
-        jev.inflight = 0
-        await asyncio.sleep(0.05)
-    run(go())
-    assert a.priority == "high" and jev.skipped_busy == 0
 
 
 def test_policy_switch_forgets_admitted_workflows(run):

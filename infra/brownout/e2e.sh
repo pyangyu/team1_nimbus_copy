@@ -33,7 +33,7 @@ ssm_script "$BROWNOUT_JEV_ID" 3600 remote/setup_jev.sh
 ssm_script "$BROWNOUT_JEV_ID" 1200 remote/deploy.sh "$SHA" jev "$BROWNOUT_LLM_URL"
 ssm_script "$BROWNOUT_AGENT_ID" 1200 remote/deploy.sh "$SHA" agent
 rc=0
-ssm_script "$BROWNOUT_AGENT_ID" 6000 remote/run_e2e.sh "$SHA" "$BROWNOUT_GATEWAY_URL" "$TAG" || rc=$?
+ssm_script "$BROWNOUT_AGENT_ID" 12000 remote/run_e2e.sh "$SHA" "$BROWNOUT_GATEWAY_URL" "$TAG" || rc=$?
 ssm_script "$BROWNOUT_JEV_ID" 600 remote/collect_jev.sh "$SHA" "$TAG" || true
 
 mkdir -p "$RESULTS"
