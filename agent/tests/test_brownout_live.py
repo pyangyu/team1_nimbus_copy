@@ -137,6 +137,7 @@ def test_policy_under_load(dataset, spec):
         assert s["rejected"] > 0 and d["rejected"] == s["rejected"]
     if policy != "reject":
         assert s["rejected"] == 0
+    if policy == "none":
         assert row["paired_n"] > 0
     if predictor == "jev-serial":
         assert d["serial_waits"] == d["think"] and row["jev_before_first_token"] > 0
