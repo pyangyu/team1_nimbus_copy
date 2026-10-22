@@ -16,13 +16,14 @@ OBJECTIVE = (
 class JevPrior:
     def __init__(self, buckets: Buckets, url: str = "http://127.0.0.1:8791/v1/systemone", *,
                  api_key: str | None = None, model: str = "open-jev", timeout: float = 2.0,
-                 head_chars: int = 1500, tail_chars: int = 500,
+                 head_chars: int = 1000, tail_chars: int = 300, max_inflight: int = 1,
                  transport: httpx.AsyncBaseTransport | None = None):
         self.buckets, self.url, self.model = buckets, url, model
         self.head_chars, self.tail_chars = head_chars, tail_chars
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self.http = httpx.AsyncClient(timeout=timeout, headers=headers, transport=transport)
-        self.calls = self.failures = 0
+        self.calls = self.failures = self.skipped_busy = self.inflight = 0
+        self.max_inflight = max_inflight
         self.last_error: str | None = None
 
     async def aclose(self) -> None:
@@ -48,7 +49,11 @@ class JevPrior:
         return {"model": self.model, "state": state, "questions": {"tier": question}}
 
     async def post(self, state, questions: dict) -> dict | None:
+        if self.max_inflight and self.inflight >= self.max_inflight:
+            self.skipped_busy += 1
+            return None
         self.calls += 1
+        self.inflight += 1
         try:
             r = await self.http.post(self.url, json={"model": self.model, "state": state, "questions": questions})
             r.raise_for_status()
@@ -57,6 +62,8 @@ class JevPrior:
             self.failures += 1
             self.last_error = f"{type(e).__name__}: {e}"
             return None
+        finally:
+            self.inflight -= 1
 
     def _probs(self, answers: dict | None) -> np.ndarray | None:
         try:

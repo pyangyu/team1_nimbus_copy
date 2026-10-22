@@ -62,7 +62,7 @@ class VersionStats:
 class BudgetClassifier:
     def __init__(self, buckets: Buckets | None = None, *, dim: int = 1 << 18, lr: float = 0.5,
                  spread: float = 0.5, jev: JevPrior | None = None, warmup: int = 200,
-                 jev_until: float = 0.95, examples: int = 8, quantile: float = 0.5,
+                 jev_until: float = 0.95, examples: int = 4, quantile: float = 0.5,
                  censored: str = "update", active_at: float = 0.05, window: int = 200,
                  max_pending: int = 100_000, reset_on_upgrade: bool = True):
         if censored not in ("update", "skip"):
@@ -169,6 +169,7 @@ class BudgetClassifier:
             "pending": len(self.pending),
             "updates": self.online.updates,
             "jev": None if self.jev is None else {"calls": self.jev.calls, "failures": self.jev.failures,
+                                                    "skipped_busy": self.jev.skipped_busy,
                                                     "last_error": self.jev.last_error},
             "versions": {str(m): v.summary() for m, v in self.versions.items()},
         }

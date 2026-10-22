@@ -54,3 +54,22 @@ def test_jev_failure_falls_back():
                            jev=JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev(seen, fail=True)))
     pred = asyncio.run(clf.predict("a", "What is 2 + 2?", "m1"))
     assert pred.source == "cold" and clf.jev.failures == 1 and "HTTPStatusError" in clf.stats()["jev"]["last_error"]
+
+
+def test_busy_jev_is_skipped_not_queued():
+    seen = []
+    jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=slow_jev(seen), max_inflight=1)
+
+    async def go():
+        return await asyncio.gather(jev.ask("a", []), jev.ask("b", []))
+    a, b = asyncio.run(go())
+    assert a is not None and b is None and jev.calls == 1 and jev.skipped_busy == 1 and jev.inflight == 0
+
+
+def slow_jev(seen, delay=0.05):
+    inner = fake_jev(seen)
+
+    async def handler(req):
+        await asyncio.sleep(delay)
+        return inner.handler(req)
+    return httpx.MockTransport(handler)

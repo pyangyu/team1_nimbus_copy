@@ -16,7 +16,7 @@ class Example:
 
 
 class ExampleMemory:
-    def __init__(self, size: int = 500, snippet_chars: int = 300):
+    def __init__(self, size: int = 500, snippet_chars: int = 200):
         self.items: deque[Example] = deque(maxlen=size)
         self.snippet_chars = snippet_chars
 

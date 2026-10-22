@@ -55,8 +55,8 @@ The policy sweep is controlled by environment variables on the agent box. They a
 | Variable | Default |
 |---|---|
 | `BROWNOUT_POLICIES` | `none,reject,uniform,brownout,brownout:announced` |
-| `BROWNOUT_N` | `24` |
-| `BROWNOUT_RATE` | `1.0` workflows/s |
+| `BROWNOUT_N` | `64` |
+| `BROWNOUT_RATE` | `4.0` workflows/s (24 at 1/s never queued on one A10G) |
 | `BROWNOUT_DATASET` | `gsm8k` |
 | `BROWNOUT_REJECT_WAITING` | `2` |
 
