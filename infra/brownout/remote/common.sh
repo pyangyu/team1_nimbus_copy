@@ -5,6 +5,7 @@ BUCKET=capstone-ci-826671498662
 export REGION BUCKET
 JEV_PORTS=${JEV_PORTS:-"8791 8792"}
 JEV_CONCURRENCY=${JEV_CONCURRENCY:-8}
+JEV_TIMEOUT=${JEV_TIMEOUT:-10}
 need_tools() {
   command -v aws >/dev/null || snap install aws-cli --classic >/dev/null
   command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null

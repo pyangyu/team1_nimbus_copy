@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: "smoke = unit tests, secrets, shellcheck (under 5 min); fast = smoke plus a GSM8K Jev-vs-classifier brownout run (about 20 min); full = smoke plus all AWS GPU jobs"
+        description: "smoke = unit tests, secrets, shellcheck (under 5 min); fast = smoke plus 16-workflow GSM8K brownout runs, Jev vs the classifier; full = smoke plus all AWS GPU jobs"
         type: choice
         options: [smoke, fast, full]
         default: smoke
@@ -172,7 +172,7 @@ jobs:
           if [ "${{ inputs.hard_dataset }}" = none ]; then export BROWNOUT_HARD_DATASET=""; fi
           if [ "${{ inputs.suite }}" = fast ]; then
             export BROWNOUT_HARD_DATASET="" BROWNOUT_POLICIES="brownout:announced:jev,brownout:announced:online"
-            export JEV_PORTS=8791 JEV_CONCURRENCY=1 BROWNOUT_SKIP_AGENT_LIVE=1
+            export BROWNOUT_N=16 BROWNOUT_SKIP_AGENT_LIVE=1
           fi
           infra/brownout/e2e.sh "${{ github.sha }}"
       - uses: aws-actions/configure-aws-credentials@v4

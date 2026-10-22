@@ -29,7 +29,7 @@ ssm_script() {
   local b64 args="" envs="" cmd params cid st v
   b64=$(cat remote/common.sh "$script" | base64 | tr -d '\n')
   for a in "$@"; do args+=" $(printf '%q' "$a")"; done
-  for v in JEV_PORTS JEV_CONCURRENCY BROWNOUT_POLICIES BROWNOUT_SKIP_AGENT_LIVE; do
+  for v in JEV_PORTS JEV_CONCURRENCY JEV_TIMEOUT BROWNOUT_POLICIES BROWNOUT_N BROWNOUT_SKIP_AGENT_LIVE; do
     [[ -z "${!v:-}" ]] || envs+="$v=$(printf '%q' "${!v}") "
   done
   cmd="echo $b64 | base64 -d > /tmp/ssm-script.sh && ${envs}bash /tmp/ssm-script.sh$args"
