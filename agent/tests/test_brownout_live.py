@@ -19,8 +19,11 @@ N = int(os.environ.get("BROWNOUT_N", "64"))
 RATE = float(os.environ.get("BROWNOUT_RATE", "4.0"))
 DATASET = os.environ.get("BROWNOUT_DATASET", "gsm8k")
 REJECT_WAITING = float(os.environ.get("BROWNOUT_REJECT_WAITING", "2"))
+ADMIT_RATE = float(os.environ.get("BROWNOUT_ADMIT_RATE", "0.25"))
+ADMIT_BURST = float(os.environ.get("BROWNOUT_ADMIT_BURST", "8"))
 COUNTERS = ("think", "rejected", "deferred", "cut", "announced", "upstream_errors")
-COLUMNS = ("policy", "n", "accuracy", "deadline_met", "correct_and_on_time", "rejected_workflows",
+COLUMNS = ("policy", "n", "accuracy", "deadline_met", "correct_and_on_time", "admitted_correct_and_on_time",
+           "rejected_workflows",
            "latency_p50_s", "latency_p90_s", "thinking_tokens_mean", "think", "cut", "announced",
            "rejected", "pressured_samples")
 RESULTS: list[dict] = []
@@ -48,7 +51,8 @@ def write_results() -> None:
 @pytest.mark.parametrize("spec", SPECS)
 def test_policy_under_load(spec):
     policy, _, notice = spec.partition(":")
-    gw("POST", "/admin/policy", json={"policy": policy, "notice": notice or "silent", "reject_waiting": REJECT_WAITING})
+    gw("POST", "/admin/policy", json={"policy": policy, "notice": notice or "silent", "reject_waiting": REJECT_WAITING,
+                                        "admit_rate": ADMIT_RATE, "admit_burst": ADMIT_BURST})
     before = gw("GET", "/v1/stats")
     out = OUT / spec.replace(":", "-")
     out.mkdir(parents=True, exist_ok=True)
@@ -71,6 +75,8 @@ def test_policy_under_load(spec):
         assert d["cut"] == d["announced"] == d["rejected"] == 0
     if policy in ("uniform", "brownout") and row["pressured_samples"] >= 3:
         assert d["cut"] + d["announced"] > 0
+    if policy == "reject" and N > ADMIT_BURST + ADMIT_RATE * N / RATE + 1:
+        assert s["rejected"] > 0 and d["rejected"] == s["rejected"]
     if policy != "reject":
         assert s["rejected"] == 0
 

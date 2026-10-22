@@ -48,4 +48,7 @@ def summarize(workflows: list[dict]) -> dict:
     if dl:
         out["deadline_met"] = mean(w["met_deadline"] for w in dl)
         out["correct_and_on_time"] = mean(w["met_deadline"] and w["correct"] for w in dl)
+        adm = [w for w in dl if not w.get("rejected")]
+        if adm and len(adm) < len(dl):
+            out["admitted_correct_and_on_time"] = mean(w["met_deadline"] and w["correct"] for w in adm)
     return {k: round(v, 4) if isinstance(v, float) else v for k, v in out.items()}

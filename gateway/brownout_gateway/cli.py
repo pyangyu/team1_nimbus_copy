@@ -28,6 +28,7 @@ def build(args: argparse.Namespace) -> tuple[Gateway, str | None]:
                             max_frac=args.max_frac, active_at=args.active_at)
     gw = Gateway(args.upstream, clf, controller, monitor, upstream_key=key, client_key=key, log_path=args.log,
                  reject_waiting=args.reject_waiting, defer_timeout=args.defer_timeout,
+                 admit_rate=args.admit_rate, admit_burst=args.admit_burst,
                  notice_text=args.notice_text, http=http)
     return gw, args.state
 
@@ -44,6 +45,8 @@ def cli(argv: list[str] | None = None) -> None:
     ap.add_argument("--notice-text", default=DEFAULT_NOTICE)
     ap.add_argument("--reject-waiting", type=float, default=8)
     ap.add_argument("--defer-timeout", type=float, default=60.0)
+    ap.add_argument("--admit-rate", type=float, default=0.25, help="reject: new workflows per second")
+    ap.add_argument("--admit-burst", type=float, default=8, help="reject: bucket size")
     ap.add_argument("--min-left", type=int, default=64)
     ap.add_argument("--max-frac", type=float, default=0.9)
     ap.add_argument("--active-at", type=float, default=0.05)

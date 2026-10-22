@@ -33,6 +33,7 @@ class Gateway:
                  upstream_key: str | None = None, client_key: str | None = None,
                  refiner: PriorityRefiner | None = None, log_path: str | Path | None = None,
                  reject_waiting: float = 8, defer_timeout: float = 60.0, defer_poll: float = 0.25,
+                 admit_rate: float = 0.25, admit_burst: float = 8, clock=time.monotonic,
                  notice_text: str = DEFAULT_NOTICE, http: httpx.AsyncClient | None = None):
         self.upstream = upstream.rstrip("/")
         self.clf, self.controller, self.monitor = clf, controller, monitor
@@ -40,6 +41,8 @@ class Gateway:
         self.upstream_key, self.client_key = upstream_key, client_key
         self.reject_waiting, self.defer_timeout, self.defer_poll = reject_waiting, defer_timeout, defer_poll
         self.notice_text = notice_text
+        self.admit_rate, self.admit_burst, self.clock = admit_rate, admit_burst, clock
+        self.refill()
         self.http = http or httpx.AsyncClient(timeout=httpx.Timeout(900.0, connect=10.0),
                                               limits=httpx.Limits(max_connections=1000))
         self.log = None
@@ -64,11 +67,23 @@ class Gateway:
         req = self.http.build_request("POST", f"{self.upstream}/completions", json=body, headers=self._up_headers(h))
         return await self.http.send(req, stream=True)
 
+    def refill(self) -> None:
+        self.tokens, self.tokens_at = float(self.admit_burst), self.clock()
+
+    def take_token(self) -> bool:
+        now = self.clock()
+        self.tokens = min(self.admit_burst, self.tokens + (now - self.tokens_at) * self.admit_rate)
+        self.tokens_at = now
+        if self.tokens < 1:
+            return False
+        self.tokens -= 1
+        return True
+
     async def admit(self) -> Response | None:
         pol = self.controller.policy
-        if pol == "reject" and self.monitor.waiting > self.reject_waiting:
+        if pol == "reject" and not self.take_token():
             self.counts["rejected"] += 1
-            return JSONResponse({"error": "rate limited", "waiting": self.monitor.waiting}, status_code=429)
+            return JSONResponse({"error": "rate limited", "admit_rate": self.admit_rate}, status_code=429)
         if pol == "defer" and self.monitor.waiting > self.reject_waiting:
             self.counts["deferred"] += 1
             t0 = time.perf_counter()
@@ -247,11 +262,17 @@ class Gateway:
             return JSONResponse({"error": str(e)}, status_code=400)
         if "reject_waiting" in body:
             self.reject_waiting = float(body["reject_waiting"])
+        if "admit_rate" in body:
+            self.admit_rate = float(body["admit_rate"])
+        if "admit_burst" in body:
+            self.admit_burst = float(body["admit_burst"])
+        self.refill()
         return JSONResponse(self.controller.stats())
 
     def stats(self) -> dict:
         return {"gateway": {**self.counts, "deferred_s": round(self.counts["deferred_s"], 2),
-                            "reject_waiting": self.reject_waiting},
+                            "reject_waiting": self.reject_waiting, "admit_rate": self.admit_rate,
+                            "admit_burst": self.admit_burst},
                 "controller": self.controller.stats(), "pressure": self.monitor.stats(),
                 "priority": self.refiner.stats(), "classifier": self.clf.stats()}
 

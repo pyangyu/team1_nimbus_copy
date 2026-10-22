@@ -58,7 +58,9 @@ The policy sweep is controlled by environment variables on the agent box. They a
 | `BROWNOUT_N` | `64` |
 | `BROWNOUT_RATE` | `4.0` workflows/s (24 at 1/s never queued on one A10G) |
 | `BROWNOUT_DATASET` | `gsm8k` |
-| `BROWNOUT_REJECT_WAITING` | `2` |
+| `BROWNOUT_REJECT_WAITING` | `2` (`defer` only) |
+| `BROWNOUT_ADMIT_RATE` | `0.25` new workflows/s (`reject`) |
+| `BROWNOUT_ADMIT_BURST` | `8` (`reject`) |
 
 Accuracy and deadline numbers are reported in `results.md`, not asserted. The test does
 assert these:
@@ -66,7 +68,7 @@ assert these:
 - no upstream errors
 - `none` never cuts or rejects
 - the cutting policies cut once there was pressure
-- only `reject` rejects
+- only `reject` rejects, and it does reject when the arrivals exceed the bucket
 - Jev answered at least once
 
 CI runs the `brownout-e2e` job after the `aws` job, on push to main and on

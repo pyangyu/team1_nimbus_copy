@@ -40,7 +40,7 @@ announced, policy}`. The math agent stores it per phase in `calls.jsonl`.
 | Policy | Under load |
 |---|---|
 | `none` | Nothing. The queue grows. |
-| `reject` | Classic rate limiter: 429 when vLLM's waiting queue is over `reject_waiting`. |
+| `reject` | Classic rate limiter: a token bucket on new workflows (`--admit-rate`, default 0.25/s, about what one A10G finishes with no limiting; `--admit-burst` 8). 429 when the bucket is empty. |
 | `defer` | Holds new calls at the gateway until the queue drains; 429 after `defer_timeout`. |
 | `uniform` | Brownout without the classifier or priority: `limit = max(requested x (1 - p), used + 64)`. |
 | `brownout` | Brownout with both: `base = min(requested, classifier budget)` and `w` by priority. |
@@ -75,7 +75,7 @@ LIFELINE_API_KEY=... brownout-gateway --upstream http://<vllm>:8000/v1 --host 0.
 Endpoints:
 - `/v1/completions` and `/v1/models`, OpenAI-compatible.
 - `GET /v1/stats`: gateway counters, controller, pressure histogram, priority, and classifier.
-- `POST /admin/policy` with `{policy, notice, reject_waiting}`.
+- `POST /admin/policy` with `{policy, notice, reject_waiting, admit_rate, admit_burst}`. It refills the bucket.
 
 `gateway.jsonl` has one row per think request, prompt included, so
 `budget-classifier replay` can run on real traffic.

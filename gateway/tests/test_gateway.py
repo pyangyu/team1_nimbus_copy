@@ -57,18 +57,35 @@ def test_budget_hit_is_censored(run):
     assert gw.clf.stats()["versions"]["fake"]["censored"] == 1
 
 
+class Clock:
+    def __init__(self):
+        self.t = 0.0
+
+    def __call__(self):
+        return self.t
+
+
 def test_reject_and_none(run):
-    gw, fake, c = make(policy="reject", reject_waiting=8)
-    gw.monitor.set(20, 4)
+    gw, fake, c = make(policy="reject", admit_burst=0)
     r = run(c.post("/v1/completions", json=body("easy"), headers=think_headers()))
     assert r.status_code == 429 and gw.counts["rejected"] == 1 and not fake.requests
     gw.controller.set_policy("none")
     assert run(c.post("/v1/completions", json=body("easy"), headers=think_headers())).status_code == 200
 
 
+def test_reject_is_a_token_bucket_on_new_workflows(run):
+    clock = Clock()
+    gw, fake, c = make(policy="reject", admit_rate=0.5, admit_burst=2, clock=clock)
+    codes = [run(c.post("/v1/completions", json=body("easy"), headers=think_headers(wf=f"w{i}"))).status_code
+             for i in range(3)]
+    clock.t = 2.0
+    codes.append(run(c.post("/v1/completions", json=body("easy"), headers=think_headers(wf="w3"))).status_code)
+    codes.append(run(c.post("/v1/completions", json=body("easy"), headers=think_headers(wf="w4"))).status_code)
+    assert codes == [200, 200, 429, 200, 429] and gw.counts["rejected"] == 2
+
+
 def test_answer_after_think_is_never_rejected(run):
-    gw, fake, c = make(policy="reject", reject_waiting=8)
-    gw.monitor.set(20, 4)
+    gw, fake, c = make(policy="reject", admit_burst=0)
     r = run(c.post("/v1/completions", json=body("easy"),
                    headers={"X-Lifeline-Phase": "answer", "X-Lifeline-Thinking-Budget": "1000"}))
     assert r.status_code == 200
@@ -206,7 +223,8 @@ def test_admin_auth_and_stats(run):
     gw, fake, c = make()
     async def go():
         bad = await c.post("/v1/completions", json=body("easy"), headers={"Authorization": "Bearer nope"})
-        sw = await c.post("/admin/policy", json={"policy": "uniform", "notice": "announced", "reject_waiting": 3})
+        sw = await c.post("/admin/policy", json={"policy": "uniform", "notice": "announced", "reject_waiting": 3,
+                                                 "admit_rate": 1.5, "admit_burst": 4})
         inv = await c.post("/admin/policy", json={"policy": "nope"})
         models = await c.get("/v1/models")
         st = await c.get("/v1/stats")
@@ -214,6 +232,7 @@ def test_admin_auth_and_stats(run):
     bad, sw, inv, models, st = run(go())
     assert bad.status_code == 401 and inv.status_code == 400
     assert sw.json()["policy"] == "uniform" and sw.json()["notice"] == "announced" and gw.reject_waiting == 3
+    assert gw.admit_rate == 1.5 and gw.admit_burst == 4 and gw.tokens == 4
     assert models.json()["data"][0]["id"] == "fake"
     assert {"gateway", "controller", "pressure", "priority", "classifier"} <= st.json().keys()
 
@@ -247,8 +266,7 @@ def test_math_agent_client_through_gateway(run):
 
 def test_math_agent_sees_rejection(run):
     llm = pytest.importorskip("math_agent.llm")
-    gw, fake, _ = make(policy="reject", reject_waiting=1)
-    gw.monitor.set(5, 1)
+    gw, fake, _ = make(policy="reject", admit_burst=0)
     client = llm.LLMClient("http://gw/v1", api_key=KEY,
                            transport=httpx.ASGITransport(app=create_app(gw, background=False)))
     async def go():
@@ -262,9 +280,8 @@ def test_math_agent_sees_rejection(run):
 
 
 def test_admitted_workflow_is_never_rejected_midway(run):
-    gw, fake, c = make(policy="reject", reject_waiting=8)
+    gw, fake, c = make(policy="reject", admit_rate=0, admit_burst=1)
     first = run(c.post("/v1/completions", json=body("easy"), headers=think_headers(wf="early")))
-    gw.monitor.set(20, 4)
     later = run(c.post("/v1/completions", json=body("easy"), headers=think_headers(step="verify.0", wf="early")))
     new = run(c.post("/v1/completions", json=body("easy"), headers=think_headers(wf="late")))
     assert first.status_code == 200 and later.status_code == 200 and new.status_code == 429
