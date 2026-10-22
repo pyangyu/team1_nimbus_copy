@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: "smoke = unit tests, secrets, shellcheck (under 5 min); full = smoke plus the AWS GPU jobs"
+        type: choice
+        options: [smoke, full]
+        default: smoke
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -17,6 +23,7 @@ jobs:
   test:
     name: test (${{ matrix.package }}, py${{ matrix.python }})
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
@@ -42,6 +49,7 @@ jobs:
 
   secrets:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,6 +60,7 @@ jobs:
 
   shell:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - run: shellcheck --severity=warning infra/vllm-ec2/*.sh infra/brownout/*.sh
@@ -65,7 +74,7 @@ jobs:
   aws:
     name: test on AWS GPU (agent, live vLLM)
     needs: test
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     concurrency:
@@ -126,7 +135,7 @@ jobs:
   brownout-e2e:
     name: Brownout end to end on AWS (agent box -> Jev gateway GPU -> vLLM GPU)
     needs: [test, aws]
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 230
     concurrency:

@@ -68,7 +68,11 @@ end-to-end tests. See [`infra/brownout/`](infra/brownout/) for that setup.
    `eval "$(infra/vllm-ec2/up.sh | sed 's/^/export /')"`
 3. Stop them when you're done: `infra/vllm-ec2/down.sh` (vLLM only) or `infra/brownout/down.sh` (all three boxes).
 
-CI (`.github/workflows/ci.yml`, job `aws`) does the same on every push to `main` through an
+CI has two suites. **Smoke** (unit tests, secret scan, shellcheck; under 5 minutes) runs on
+every push to `main`. **Full** adds the AWS GPU jobs below and runs only on demand:
+`gh workflow run CI -f suite=full` (or Actions → CI → Run workflow → full).
+
+In the full suite, job `aws` does the same as the steps above through an
 OIDC role (`capstone-github-ci`, no stored keys): it starts the batch GPU, runs the agent tests
 against it, and stops it again unless someone already had it running.
 Job `brownout-e2e` then runs the whole Brownout chain (agent box, gateway, Open-Jev and vLLM),

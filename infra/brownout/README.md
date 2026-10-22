@@ -79,6 +79,6 @@ benefits from the runs before it. Accuracy and deadline numbers are reported in
   rates for each in `results.md`)
 - `jev-serial` waited for Jev on every think request, and Jev answered before the first token
 
-CI runs the `brownout-e2e` job after the `aws` job, on push to main and on
-`workflow_dispatch`. It uses the same OIDC role and stops only the boxes it started.
+CI runs the `brownout-e2e` job after the `aws` job, only in the full suite
+(`gh workflow run CI -f suite=full`); pushes to main run the smoke suite only. It uses the same OIDC role and stops only the boxes it started.
 A run costs roughly $5: two A10Gs for about two and a half hours. The CI role's session lasts 4 hours (`setup_iam.sh`).
