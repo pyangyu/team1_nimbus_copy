@@ -1,0 +1,138 @@
+Thinking Brownout - backlog
+===========================
+
+[2026-10-21] OPEN DECISION: which specialized-model use case justifies training?
+
+Problem
+- Nobody else trains the model for load-driven budget cuts. Serving papers want
+  to work with any off-the-shelf model, and training papers never see load.
+- Training is what makes us novel, so we need a specialized model, and
+  therefore a use case where a specialized model makes sense.
+
+Argument
+- Anyone who already fine-tunes the model they serve can add a brownout-aware
+  SFT/RL stage at little extra cost. Generic plug-in brownout gives up accuracy
+  that training can recover.
+
+Candidates
+- Math tutoring / homework help (Khanmigo-style). Spikes in evenings and exam
+  weeks. Answers can be checked automatically (GSM8K/MATH), so RL is cheap.
+  RECOMMENDED: fits 2 GPUs on a small Qwen3 model and lines up with the
+  existing math_agent.
+- Coding agents (Cursor Composer, Windsurf SWE-1). Business-hours bursts.
+  Tests can serve as the reward, but runs are long and expensive.
+- First-party providers (OpenAI/Anthropic/Google). They already train
+  "reasoning effort" into their models. Too big for us to test; use it only to
+  argue this isn't a niche.
+- On-device / edge. The "load" comes from other apps and thermal throttling,
+  which drifts away from cloud.
+- Enterprise vertical agents (legal, support). No clean automatic reward.
+
+Pitch framing: "If you own the model, which every specialized deployment and
+every frontier lab does, training it for brownout gets back X% accuracy at the
+same latency target."
+
+Status: OPEN. Math tutoring is recommended; the team hasn't decided.
+
+[2026-10-21] IDEA: Jev for everything (one decision model for every serving decision)
+
+What it is
+- A single Jev call (hosted Jev or local Open-Jev, /v1/systemone) answers every
+  serving decision for a request at once, instead of separate heuristics:
+  - admission: admit / defer / reject
+  - plan: which model, colocated vs disaggregated prefill/decode, which replica
+    (model routing; batch-to-real-time promotion is a plan option)
+  - priority: high / normal / low (vLLM priority scheduling)
+  - thinking budget: up to what the client asked for (thinking cutting)
+- Objective given to Jev: maximize sessions that finish before their deadline
+  with a good answer, at the lowest GPU cost.
+
+Where it lives
+- Built during Lifeline: branch jev-decisions in
+  ~/dev/Fall26-Team-01-Nimbus (also ~/dev/nimbus-jev), lifeline/lifeline/decide/
+  (jev.py, heuristics.py, types.py), with a gateway, heuristic baselines, a
+  `random` policy for exploration data, and a simulator calibrated to the A10G
+  run (commit d703ae7: baselines at three load levels).
+- Origins: Oct 14, Jev instead of a small language model to predict deadline
+  misses (promotion); Oct 18, Harry suggested Jev to set each request's initial
+  thinking budget.
+
+Relation to Thinking Brownout
+- Only the budget decision carried over, as the per-request thinking-tier
+  classifier.
+- Admission (admit/defer/reject) is the traditional rate limiter that
+  Brownout replaces with thinking cuts, so it is a baseline, not a Jev decision.
+- Promotion was dropped as the main pitch for weak novelty (Harry, Oct 20).
+
+Status: PARKED. Possible extension or future-work slide: the brownout
+controller and the tier classifier as two answers from one Jev call.
+
+[2026-10-21] IDEA (branch of "Jev for everything"): Jev for MoE expert decisions
+
+Not per-token expert choice
+- The MoE router picks experts per token, per layer, inside the forward pass.
+  A Jev call is far slower than one decode step, so it cannot sit there, even
+  in agentic workflows (the choice is made inside each call).
+- Experts specialize in token patterns (punctuation, code syntax, numbers), not
+  topics, so there is no "math expert" to send a request to.
+
+Session-level version (agentic, many calls per workflow)
+- Expert-aware replica choice: with expert parallelism, replicas keep different
+  experts hot/resident. Jev predicts which experts a session will lean on and
+  routes it to the replica that already has them. This would be one more option
+  in the existing model + path + replica plan decision.
+- Prefetch / placement hints: at workflow start, Jev predicts the session's expert
+  footprint so the system loads or replicates those experts before the calls
+  arrive. Links to Harry's hot-expert rate-limiting idea
+  (../moe-hot-expert-rate-limiting.md, ../status-2026-09-07.md).
+
+Catch
+- The model's own router reveals the footprint after the first prefill, exactly
+  and for free. Jev only helps before the first call, or if it predicts the
+  expert mix of later calls better than the first call's routing does.
+- Token-level expert-prefetch predictors exist (e.g. Pre-gated MoE, ISCA '24).
+  A session-level, workflow-aware version has not been searched for yet.
+
+Status: PARKED. Unsearched.
+
+[2026-10-22] IDEAS FROM DEER (Dynamic Early Exit in Reasoning Models, ICLR 2026, arXiv 2504.15895)
+
+What DEER does
+- Watches the reasoning for step transitions ("Wait", or "\n\n" with an entropy
+  check), forces a trial answer there, and scores it by the geometric mean of
+  each answer token's top probability. Above 0.95: stop thinking and answer.
+  Below: drop the trial answer and keep reasoning. Training-free.
+- 19-43% fewer tokens with slightly higher accuracy on R1-Distill-Qwen-7B,
+  Qwen3-14B and QwQ-32B. Weak spot: rarely exits early on hard problems.
+
+1. Cut only at step boundaries. DO NOW.
+- The gateway cuts mid-sentence today. Instead, wait for the next "Wait" or
+  blank line before inserting <budget_cut left=N>. The gateway already sees the
+  stream, so this is a few lines, and cuts should be less jarring for the
+  untrained model too.
+
+2. Confidence-ranked cuts. OPEN.
+- Under pressure, probe a few in-flight requests for a trial answer and cut
+  the confident ones hardest; they lose almost nothing. Beats a uniform cut.
+- Overlap: LASER (WASA 2026) already lowers DEER's threshold as load rises, so
+  "load-driven confidence exit" is LASER's. New part: confidence picks which
+  requests absorb our announced, trained-for cut.
+- Cost: each probe spends tokens exactly when the GPU is busiest. Run probes
+  as separate requests sharing the prefix (vLLM prefix caching keeps them
+  cheap). DEER's branch-parallel variant needs custom attention masks that
+  vLLM doesn't support.
+
+3. Motivation numbers for slides.
+- DEER pilot (R1-Distill-Qwen-14B): ~75% of samples have an earlier point where
+  exiting is still correct; 60.8% of correct MATH-500 answers stay correct
+  after only 20% of reasoning steps. Evidence that brownout cuts need not hurt
+  much.
+
+4. Training data for the SFT/RL stage (Matthew).
+- Run DEER-style trial answers along reasoning traces to find the earliest
+  point where the answer is already right. Those points give SFT examples
+  (cut here, good wrap-up) and an RL reward signal.
+
+5. DEER as a baseline.
+- Add training-free DEER early exit to the sweep next to none / reject /
+  defer / uniform; reviewers will expect it.
