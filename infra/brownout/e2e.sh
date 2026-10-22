@@ -11,7 +11,7 @@ SHA=$(git -C "$ROOT" rev-parse "$REF")
 TAG=${BROWNOUT_TAG:-$(date -u +%Y%m%d-%H%M%S)}
 RESULTS=$CALLER/brownout-results
 export BROWNOUT_STARTED_FILE=${BROWNOUT_STARTED_FILE:-/tmp/brownout-started-$$}
-: > "$BROWNOUT_STARTED_FILE"
+touch "$BROWNOUT_STARTED_FILE"
 
 cleanup() {
   local started
