@@ -41,11 +41,12 @@ exam night.
 | Component | Status | Where |
 |---|---|---|
 | Math agent: multi-step workflows with deadlines; client-side budget drop and notice for experiments | first version | [`agent/`](agent/) (FinQA version in [`agent/archive/finqa/`](agent/archive/finqa/)) |
-| vLLM on EC2: two A10G GPUs | scripts ready, CI runs on them | [`infra/vllm-ec2/`](infra/vllm-ec2/) |
+| vLLM on EC2 (Qwen3-8B, one A10G) | scripts ready, CI runs on it | [`infra/vllm-ec2/`](infra/vllm-ec2/) |
+| Brownout on AWS: agent box -> Jev GPU (Open-Jev-2B + gateway) -> vLLM GPU, policy sweep in CI | first version | [`infra/brownout/`](infra/brownout/) |
 | Budget-drop baselines and SFT/RL training (Qwen3-4B + LoRA) | in progress (Matthew) | |
 | Budget classifier (online, ten buckets, Jev while cold) | first version | [`classifier/`](classifier/) |
-| Pressure monitor and budget controller in vLLM | todo | |
-| Cut-token injection in the engine | todo (the agent emulates it client-side) | |
+| Gateway: pressure monitor, budget controller (in-flight cuts, silent or announced), cut-protection priority, baselines (none, reject, defer, uniform) | first version, in front of vLLM | [`gateway/`](gateway/) |
+| Cut-token injection inside the engine | todo (the gateway emulates it by aborting and continuing the stream) | |
 
 The request headers the agent sends (budgets, deadlines, budget drops) are in
 [`agent/README.md`](agent/README.md#request-headers).
@@ -53,7 +54,9 @@ The request headers the agent sends (budgets, deadlines, budget drops) are in
 ## GPUs on the shared AWS account
 
 The team shares two g5.xlarge instances (one A10G each) in Liam's AWS account:
-`lifeline-vllm-rt` and `lifeline-vllm-batch` (names from the earlier two-tier design; CI uses batch).
+`lifeline-vllm-batch` runs vLLM (Qwen3-8B), and `brownout-jev` (formerly `lifeline-vllm-rt`) runs
+Open-Jev-2B and the Brownout gateway. A t3.small, `brownout-agent`, runs the math agent in the
+end-to-end tests. See [`infra/brownout/`](infra/brownout/) for that setup.
 
 1. Get `secrets.env` from Liam and put it in `infra/vllm-ec2/` (or, if you have your own
    credentials for the account, skip it: the scripts use your AWS profile and read the vLLM
@@ -63,11 +66,13 @@ The team shares two g5.xlarge instances (one A10G each) in Liam's AWS account:
    your credentials belong to a different account.
 2. Start the servers (or find them already running) and export their URLs:
    `eval "$(infra/vllm-ec2/up.sh | sed 's/^/export /')"`
-3. Stop them when you're done: `infra/vllm-ec2/down.sh` (or `down.sh rt` / `down.sh batch`).
+3. Stop them when you're done: `infra/vllm-ec2/down.sh` (vLLM only) or `infra/brownout/down.sh` (all three boxes).
 
 CI (`.github/workflows/ci.yml`, job `aws`) does the same on every push to `main` through an
 OIDC role (`capstone-github-ci`, no stored keys): it starts the batch GPU, runs the agent tests
 against it, and stops it again unless someone already had it running.
+Job `brownout-e2e` then runs the whole Brownout chain (agent box, gateway, Open-Jev and vLLM),
+sweeps the policies, uploads `brownout-results` as an artifact, and stops the boxes it started.
 
 Rules:
 - `secrets.env` is gitignored. Never commit it or paste its contents into an issue, PR or
