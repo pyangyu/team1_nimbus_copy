@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: "smoke = unit tests, secrets, shellcheck (under 5 min); full = smoke plus the AWS GPU jobs"
+        description: "smoke = unit tests, secrets, shellcheck (under 5 min); fast = smoke plus a GSM8K Jev-vs-classifier brownout run (about 20 min); full = smoke plus all AWS GPU jobs"
         type: choice
-        options: [smoke, full]
+        options: [smoke, fast, full]
         default: smoke
       hard_dataset:
         description: "full suite: second sweep after GSM8K (none = GSM8K only)"
@@ -140,7 +140,9 @@ jobs:
   brownout-e2e:
     name: Brownout end to end on AWS (agent box -> Jev gateway GPU -> vLLM GPU)
     needs: [test, aws]
-    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'full'
+    if: >-
+      always() && github.event_name == 'workflow_dispatch' && needs.test.result == 'success' &&
+      ((inputs.suite == 'full' && needs.aws.result == 'success') || inputs.suite == 'fast')
     runs-on: ubuntu-latest
     timeout-minutes: 230
     concurrency:
@@ -168,6 +170,10 @@ jobs:
       - name: Start the boxes, set up Open-Jev, deploy, sweep the policies
         run: |
           if [ "${{ inputs.hard_dataset }}" = none ]; then export BROWNOUT_HARD_DATASET=""; fi
+          if [ "${{ inputs.suite }}" = fast ]; then
+            export BROWNOUT_HARD_DATASET="" BROWNOUT_POLICIES="brownout:announced:jev,brownout:announced:online"
+            export JEV_PORTS=8791 JEV_CONCURRENCY=1 BROWNOUT_SKIP_AGENT_LIVE=1
+          fi
           infra/brownout/e2e.sh "${{ github.sha }}"
       - uses: aws-actions/configure-aws-credentials@v4
         if: always()

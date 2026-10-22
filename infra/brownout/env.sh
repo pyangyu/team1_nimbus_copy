@@ -26,10 +26,13 @@ instance_id() {
 ssm_script() {
   local id=$1 timeout=$2 script=$3
   shift 3
-  local b64 args="" cmd params cid st
+  local b64 args="" envs="" cmd params cid st v
   b64=$(cat remote/common.sh "$script" | base64 | tr -d '\n')
   for a in "$@"; do args+=" $(printf '%q' "$a")"; done
-  cmd="echo $b64 | base64 -d > /tmp/ssm-script.sh && bash /tmp/ssm-script.sh$args"
+  for v in JEV_PORTS JEV_CONCURRENCY BROWNOUT_POLICIES BROWNOUT_SKIP_AGENT_LIVE; do
+    [[ -z "${!v:-}" ]] || envs+="$v=$(printf '%q' "${!v}") "
+  done
+  cmd="echo $b64 | base64 -d > /tmp/ssm-script.sh && ${envs}bash /tmp/ssm-script.sh$args"
   params=$(python3 -c 'import json,sys; print(json.dumps({"commands": [sys.argv[1]], "executionTimeout": [sys.argv[2]]}))' "$cmd" "$timeout")
   cid=$($AWS ssm send-command --instance-ids "$id" --document-name AWS-RunShellScript \
     --parameters "$params" --timeout-seconds 600 --query Command.CommandId --output text)

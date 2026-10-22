@@ -11,6 +11,11 @@ tar xzf /tmp/src.tgz -C $SRC
 PY=/opt/brownout/venv/bin/python
 if [[ $ROLE == jev ]]; then
   uv pip install -q --python $PY -e $SRC/classifier -e $SRC/gateway
+  for unit in $(systemctl list-units --all --plain --no-legend 'open-jev@*' | awk '{print $1}'); do
+    port=${unit#open-jev@}
+    port=${port%.service}
+    [[ " $JEV_PORTS " == *" $port "* ]] || systemctl disable --now "$unit" >/dev/null 2>&1 || true
+  done
   JEV_URLS=""
   for port in $JEV_PORTS; do
     systemctl enable "open-jev@$port" >/dev/null 2>&1

@@ -9,7 +9,9 @@ export LIFELINE_BASE_URL=$GATEWAY LIFELINE_DATA=/opt/brownout/data MATH_AGENT_LI
 LIFELINE_API_KEY=$(api_key)
 export LIFELINE_API_KEY
 set +e
-/opt/brownout/venv/bin/python -m pytest -q -rs tests/test_live.py tests/test_brownout_live.py \
+TESTS=(tests/test_live.py tests/test_brownout_live.py)
+[[ -z "${BROWNOUT_SKIP_AGENT_LIVE:-}" ]] || TESTS=(tests/test_brownout_live.py)
+/opt/brownout/venv/bin/python -m pytest -q -rs "${TESTS[@]}" \
   --junitxml="$OUT/junit.xml" > "$OUT/pytest.log" 2>&1
 rc=$?
 set -e
