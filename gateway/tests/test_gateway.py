@@ -300,3 +300,10 @@ def test_refiner_waits_for_busy_jev(run):
         await asyncio.sleep(0.05)
     run(go())
     assert a.priority == "high" and jev.skipped_busy == 0
+
+
+def test_policy_switch_forgets_admitted_workflows(run):
+    gw, fake, c = make(policy="none")
+    assert run(c.post("/v1/completions", json=body("easy"), headers=think_headers(wf="w0"))).status_code == 200
+    run(c.post("/admin/policy", json={"policy": "reject", "admit_rate": 0, "admit_burst": 0}))
+    assert run(c.post("/v1/completions", json=body("easy"), headers=think_headers(wf="w0"))).status_code == 429

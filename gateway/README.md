@@ -75,7 +75,7 @@ LIFELINE_API_KEY=... brownout-gateway --upstream http://<vllm>:8000/v1 --host 0.
 Endpoints:
 - `/v1/completions` and `/v1/models`, OpenAI-compatible.
 - `GET /v1/stats`: gateway counters, controller, pressure histogram, priority, and classifier.
-- `POST /admin/policy` with `{policy, notice, reject_waiting, admit_rate, admit_burst}`. It refills the bucket.
+- `POST /admin/policy` with `{policy, notice, reject_waiting, admit_rate, admit_burst}`. It refills the bucket and forgets which workflows were admitted, so a sweep can reuse workflow ids.
 
 `gateway.jsonl` has one row per think request, prompt included, so
 `budget-classifier replay` can run on real traffic.

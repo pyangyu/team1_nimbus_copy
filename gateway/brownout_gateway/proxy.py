@@ -267,6 +267,7 @@ class Gateway:
         if "admit_burst" in body:
             self.admit_burst = float(body["admit_burst"])
         self.refill()
+        self.admitted.clear()
         return JSONResponse(self.controller.stats())
 
     def stats(self) -> dict:
