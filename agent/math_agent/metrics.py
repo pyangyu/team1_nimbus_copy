@@ -34,7 +34,8 @@ def summarize(workflows: list[dict]) -> dict:
     out = {
         "n": n,
         "accuracy": mean(w["correct"] for w in workflows),
-        "errors": sum(1 for w in workflows if w.get("error")),
+        "errors": sum(1 for w in workflows if w.get("error") and not w.get("rejected")),
+        "rejected": sum(1 for w in workflows if w.get("rejected")),
         "latency_p50_s": pct(lat, 50),
         "latency_p90_s": pct(lat, 90),
         "latency_p99_s": pct(lat, 99),

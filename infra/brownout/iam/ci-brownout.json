@@ -1,0 +1,36 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "RunOnTeamBoxes",
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": "arn:aws:ec2:us-east-1:826671498662:instance/*",
+      "Condition": {"StringEquals": {"aws:ResourceTag/project": "lifeline"}}
+    },
+    {
+      "Sid": "RunShellScript",
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": "arn:aws:ssm:us-east-1::document/AWS-RunShellScript"
+    },
+    {
+      "Sid": "ReadCommands",
+      "Effect": "Allow",
+      "Action": ["ssm:GetCommandInvocation", "ssm:ListCommandInvocations", "ssm:DescribeInstanceInformation"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CiBundles",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": "arn:aws:s3:::capstone-ci-826671498662/ci/*"
+    },
+    {
+      "Sid": "CiBundlesList",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::capstone-ci-826671498662"
+    }
+  ]
+}

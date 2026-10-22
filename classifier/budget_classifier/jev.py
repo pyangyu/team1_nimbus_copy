@@ -47,17 +47,36 @@ class JevPrior:
         }
         return {"model": self.model, "state": state, "questions": {"tier": question}}
 
-    async def ask(self, prompt: str, examples: list[Example]) -> np.ndarray | None:
+    async def post(self, state, questions: dict) -> dict | None:
         self.calls += 1
         try:
-            r = await self.http.post(self.url, json=self.request_body(prompt, examples))
+            r = await self.http.post(self.url, json={"model": self.model, "state": state, "questions": questions})
             r.raise_for_status()
-            probs = r.json()["answers"]["tier"]["probabilities"]
+            return r.json()["answers"]
+        except Exception as e:
+            self.failures += 1
+            self.last_error = f"{type(e).__name__}: {e}"
+            return None
+
+    def _probs(self, answers: dict | None) -> np.ndarray | None:
+        try:
+            probs = answers["tier"]["probabilities"]
             p = np.array([float(probs[str(i)]) for i in range(self.buckets.n)])
             if not np.isfinite(p).all() or p.sum() <= 0:
                 raise ValueError("bad probabilities")
             return p / p.sum()
         except Exception as e:
-            self.failures += 1
-            self.last_error = f"{type(e).__name__}: {e}"
+            if answers is not None:
+                self.failures += 1
+                self.last_error = f"{type(e).__name__}: {e}"
             return None
+
+    async def ask_with(self, prompt: str, examples: list[Example], extra: dict | None = None
+                       ) -> tuple[np.ndarray | None, dict]:
+        body = self.request_body(prompt, examples)
+        questions = {**body["questions"], **(extra or {})}
+        answers = await self.post(body["state"], questions)
+        return self._probs(answers), {k: v for k, v in (answers or {}).items() if k in (extra or {})}
+
+    async def ask(self, prompt: str, examples: list[Example]) -> np.ndarray | None:
+        return (await self.ask_with(prompt, examples))[0]

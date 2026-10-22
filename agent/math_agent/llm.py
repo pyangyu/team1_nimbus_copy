@@ -31,6 +31,10 @@ NOTICES = {
 }
 
 
+class Rejected(RuntimeError):
+    pass
+
+
 @dataclass
 class BudgetDrop:
     at: int
@@ -59,6 +63,8 @@ class Phase:
     latency_s: float = 0.0
     finish_reason: str | None = None
     tier: str | None = None  # echoed back by the gateway, if any
+    priority: str | None = None
+    gateway: dict | None = None
 
 
 @dataclass
@@ -135,9 +141,12 @@ class LLMClient:
         parts: list[str] = []
         async with self.http.stream("POST", f"{self.base_url}/completions",
                                     json=body, headers=headers) as r:
+            if r.status_code == 429:
+                raise Rejected(f"429: {(await r.aread())[:300]!r}")
             if r.status_code >= 400:
                 raise RuntimeError(f"{r.status_code}: {(await r.aread())[:300]!r}")
             ph.tier = r.headers.get("x-lifeline-tier")
+            ph.priority = r.headers.get("x-lifeline-priority")
             async for line in r.aiter_lines():
                 if not line.startswith("data:"):
                     continue
@@ -155,6 +164,8 @@ class LLMClient:
                 if ev.get("usage"):
                     ph.prompt_tokens = ev["usage"]["prompt_tokens"]
                     ph.completion_tokens = ev["usage"]["completion_tokens"]
+                if ev.get("lifeline"):
+                    ph.gateway = ev["lifeline"]
         ph.latency_s = time.perf_counter() - t0
         return "".join(parts), ph
 

@@ -25,6 +25,7 @@ class Prediction:
     shadow: bool
     model: str | None
     probs: list[float]
+    extra: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -108,7 +109,8 @@ class BudgetClassifier:
     def _pick(self, p: np.ndarray) -> int:
         return int(min(np.searchsorted(np.cumsum(p), self.quantile - 1e-9), self.buckets.n - 1))
 
-    async def predict(self, request_id: str, prompt: str, model: str | None = None) -> Prediction:
+    async def predict(self, request_id: str, prompt: str, model: str | None = None,
+                      extra_questions: dict | None = None) -> Prediction:
         self._switch(model)
         model = self.current_model
         x = featurize(prompt, self.dim)
@@ -116,8 +118,9 @@ class BudgetClassifier:
         n = self._version(model).labels
         w = n / (n + self.warmup) if self.warmup > 0 else 1.0
         source = "online" if n else "cold"
+        extra: dict = {}
         if self.jev is not None and w < self.jev_until:
-            pj = await self.jev.ask(prompt, self.memory.similar(x, model, self.examples))
+            pj, extra = await self.jev.ask_with(prompt, self.memory.similar(x, model, self.examples), extra_questions)
             if pj is not None:
                 p = w * p + (1 - w) * pj
                 source = "blend" if n else "jev"
@@ -127,7 +130,7 @@ class BudgetClassifier:
         while len(self.pending) > self.max_pending:
             self.pending.popitem(last=False)
         return Prediction(request_id, k, self.buckets.label(k), self.buckets.budget(k), round(float(p[k]), 4),
-                          source, self.shadow, model, [round(float(v), 4) for v in p])
+                          source, self.shadow, model, [round(float(v), 4) for v in p], extra)
 
     def observe(self, request_id: str, thinking_tokens: int, *, finished: bool = True,
                 model: str | None = None, prompt: str | None = None) -> dict:

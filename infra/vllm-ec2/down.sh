@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Stop the vLLM instances (EBS and the cached model are kept, ~$10/month each).
-# Usage: ./down.sh [rt] [batch] [--terminate]   (default: both; --terminate deletes them entirely)
+# Usage: ./down.sh [batch] [--terminate]   (--terminate deletes them entirely)
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 
@@ -9,7 +9,7 @@ TIERS=()
 for a in "$@"; do
   if [[ "$a" == --terminate ]]; then TERMINATE=1; else TIERS+=("$a"); fi
 done
-[[ ${#TIERS[@]} -gt 0 ]] || TIERS=(rt batch)
+[[ ${#TIERS[@]} -gt 0 ]] || TIERS=(batch)
 
 for tier in "${TIERS[@]}"; do
   name=lifeline-vllm-$tier

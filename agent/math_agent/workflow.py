@@ -19,7 +19,7 @@ from typing import Callable
 from . import prompts
 from .datasets import Example
 from .grading import extract, grade
-from .llm import BudgetDrop, CallMeta, CallResult, LLMClient
+from .llm import BudgetDrop, CallMeta, CallResult, LLMClient, Rejected
 
 
 @dataclass
@@ -59,6 +59,7 @@ class WorkflowResult:
     thinking_tokens: int = 0
     answer_tokens: int = 0
     error: str | None = None
+    rejected: bool = False
     trace: list[dict] = field(default_factory=list)
 
     def record(self) -> dict:
@@ -120,6 +121,9 @@ async def run_workflow(ex: Example, llm: LLMClient, cfg: AgentConfig,
                     break
                 rejected.append(pred)
             budget = int(min(cfg.max_budget, budget * cfg.budget_growth))
+    except Rejected as e:
+        res.rejected = True
+        res.error = f"Rejected: {e}"
     except Exception as e:  # a failed call still produces a scored (wrong) workflow
         res.error = f"{type(e).__name__}: {e}"
     res.end = time.time()

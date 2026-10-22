@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [agent, lifeline, classifier]
+        package: [agent, lifeline, classifier, gateway]
         python: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +36,7 @@ jobs:
       - if: steps.present.outputs.found == 'true'
         working-directory: ${{ matrix.package }}
         run: |
+          if [ "${{ matrix.package }}" = gateway ]; then pip install -e ../classifier -e ../agent; fi
           pip install -e ".[test]"
           pytest -q
 
@@ -53,7 +54,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: shellcheck --severity=warning infra/vllm-ec2/*.sh
+      - run: shellcheck --severity=warning infra/vllm-ec2/*.sh infra/brownout/*.sh
+      - name: Remote scripts (run with common.sh prepended)
+        run: |
+          for f in infra/brownout/remote/*.sh; do
+            [ "$f" = infra/brownout/remote/common.sh ] && continue
+            cat infra/brownout/remote/common.sh "$f" | shellcheck --severity=warning -s bash -
+          done
 
   aws:
     name: test on AWS GPU (agent, live vLLM)
@@ -111,3 +118,47 @@ jobs:
             --query 'SecurityGroups[0].GroupId' --output text)
           aws ec2 revoke-security-group-ingress --group-id "$sg" --protocol tcp --port 8000 \
             --cidr "${{ steps.before.outputs.ip }}/32" >/dev/null 2>&1 || true
+
+  brownout-e2e:
+    name: Brownout end to end on AWS (agent box -> Jev gateway GPU -> vLLM GPU)
+    needs: [test, aws]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: aws-gpu
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: us-east-1
+      BROWNOUT_STOP: "1"
+      BROWNOUT_STARTED_FILE: /tmp/brownout-started
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::826671498662:role/capstone-github-ci
+          aws-region: us-east-1
+      - name: Start the boxes, set up Open-Jev, deploy, sweep the policies
+        run: infra/brownout/e2e.sh "${{ github.sha }}"
+      - name: Stop the boxes this run started
+        if: always()
+        run: |
+          ids=$(tr '\n' ' ' < /tmp/brownout-started 2>/dev/null || true)
+          if [ -n "${ids// /}" ]; then
+            aws ec2 stop-instances --instance-ids $ids > /dev/null || true
+          fi
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f brownout-results/results.md ]; then
+            { echo "## Brownout policy sweep"; echo; cat brownout-results/results.md; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: brownout-results
+          path: brownout-results/
+          if-no-files-found: warn

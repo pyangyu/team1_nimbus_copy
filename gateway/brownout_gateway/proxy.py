@@ -1,0 +1,281 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import time
+import uuid
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+import httpx
+from starlette.applications import Starlette
+from starlette.background import BackgroundTask
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response, StreamingResponse
+from starlette.routing import Route
+
+from budget_classifier import BudgetClassifier
+
+from .controller import Active, Controller
+from .pressure import PressureMonitor
+from .priority import PriorityRefiner, from_answer, heuristic, question
+
+DEFAULT_NOTICE = "\n\n<budget_cut left={N}>\n"
+
+
+def sse(ev: dict | str) -> str:
+    return f"data: {ev if isinstance(ev, str) else json.dumps(ev)}\n\n"
+
+
+class Gateway:
+    def __init__(self, upstream: str, clf: BudgetClassifier, controller: Controller, monitor: PressureMonitor, *,
+                 upstream_key: str | None = None, client_key: str | None = None,
+                 refiner: PriorityRefiner | None = None, log_path: str | Path | None = None,
+                 reject_waiting: float = 8, defer_timeout: float = 60.0, defer_poll: float = 0.25,
+                 notice_text: str = DEFAULT_NOTICE, http: httpx.AsyncClient | None = None):
+        self.upstream = upstream.rstrip("/")
+        self.clf, self.controller, self.monitor = clf, controller, monitor
+        self.refiner = refiner or PriorityRefiner(clf.jev)
+        self.upstream_key, self.client_key = upstream_key, client_key
+        self.reject_waiting, self.defer_timeout, self.defer_poll = reject_waiting, defer_timeout, defer_poll
+        self.notice_text = notice_text
+        self.http = http or httpx.AsyncClient(timeout=httpx.Timeout(900.0, connect=10.0),
+                                              limits=httpx.Limits(max_connections=1000))
+        self.log = None
+        if log_path:
+            Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+            self.log = open(log_path, "a", encoding="utf-8")
+        self.counts = {"requests": 0, "think": 0, "passthrough": 0, "rejected": 0, "deferred": 0,
+                       "deferred_s": 0.0, "cut": 0, "announced": 0, "upstream_errors": 0}
+
+    def _up_headers(self, h: dict[str, str]) -> dict[str, str]:
+        out = {k: v for k, v in h.items() if k.startswith("x-lifeline")}
+        if self.upstream_key:
+            out["Authorization"] = f"Bearer {self.upstream_key}"
+        return out
+
+    def authorized(self, request: Request) -> bool:
+        return not self.client_key or request.headers.get("authorization") == f"Bearer {self.client_key}"
+
+    async def _open(self, body: dict, h: dict[str, str]) -> httpx.Response:
+        req = self.http.build_request("POST", f"{self.upstream}/completions", json=body, headers=self._up_headers(h))
+        return await self.http.send(req, stream=True)
+
+    async def admit(self) -> Response | None:
+        pol = self.controller.policy
+        if pol == "reject" and self.monitor.waiting > self.reject_waiting:
+            self.counts["rejected"] += 1
+            return JSONResponse({"error": "rate limited", "waiting": self.monitor.waiting}, status_code=429)
+        if pol == "defer" and self.monitor.waiting > self.reject_waiting:
+            self.counts["deferred"] += 1
+            t0 = time.perf_counter()
+            while self.monitor.waiting > self.reject_waiting:
+                if time.perf_counter() - t0 > self.defer_timeout:
+                    self.counts["deferred_s"] += time.perf_counter() - t0
+                    self.counts["rejected"] += 1
+                    return JSONResponse({"error": "deferred too long", "waiting": self.monitor.waiting}, status_code=429)
+                await asyncio.sleep(self.defer_poll)
+            self.counts["deferred_s"] += time.perf_counter() - t0
+        return None
+
+    async def completions(self, request: Request) -> Response:
+        if not self.authorized(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        body = await request.json()
+        h = {k.lower(): v for k, v in request.headers.items()}
+        self.counts["requests"] += 1
+        phase = h.get("x-lifeline-phase")
+        budget = int(h.get("x-lifeline-thinking-budget") or 0)
+        continuation = "x-lifeline-budget-drop" in h
+        if phase is None or (phase == "think" and not continuation) or (phase == "answer" and budget <= 0):
+            if (rejected := await self.admit()) is not None:
+                return rejected
+        if phase == "think" and not continuation and body.get("stream"):
+            return await self.think(body, h)
+        return await self.passthrough(body, h)
+
+    async def passthrough(self, body: dict, h: dict[str, str]) -> Response:
+        self.counts["passthrough"] += 1
+        r = await self._open(body, h)
+        return StreamingResponse(r.aiter_raw(), status_code=r.status_code,
+                                 media_type=r.headers.get("content-type"), background=BackgroundTask(r.aclose))
+
+    async def think(self, body: dict, h: dict[str, str]) -> Response:
+        self.counts["think"] += 1
+        t0 = time.time()
+        wf, step = h.get("x-lifeline-workflow", "-"), h.get("x-lifeline-step", "-")
+        cls = h.get("x-lifeline-class", "agentic")
+        dl = h.get("x-lifeline-deadline")
+        dl = int(dl) if dl and dl.isdigit() else None
+        prompt = body["prompt"]
+        requested = int(body.get("max_tokens") or h.get("x-lifeline-thinking-budget") or 4096)
+        rid = f"{wf}:{step}:{uuid.uuid4().hex[:8]}"
+        extra = {"priority": question(cls, step, dl)} if self.clf.jev is not None else None
+        pred = await self.clf.predict(rid, prompt, body.get("model"), extra_questions=extra)
+        a = Active(rid, requested, pred.budget, heuristic(cls, step, dl), requested)
+        level = from_answer(pred.extra.get("priority"))
+        if level is not None:
+            a.set_priority(level, "jev")
+        elif self.controller.policy == "brownout":
+            self.refiner.refine(a, cls, step, dl, prompt)
+        self.controller.start(a)
+        first = a.limit
+        up = {**body, "max_tokens": a.limit, "stream": True,
+              "stream_options": {"include_usage": True, "continuous_usage_stats": True}}
+        r = await self._open(up, h)
+        if r.status_code >= 400:
+            content = await r.aread()
+            await r.aclose()
+            self.counts["upstream_errors"] += 1
+            self.controller.finish(a)
+            self.clf.pending.pop(rid, None)
+            return Response(content, status_code=r.status_code, media_type=r.headers.get("content-type"))
+        meta = {"rid": rid, "workflow": wf, "step": step, "class": cls, "model": body.get("model"),
+                "requested": requested, "tier": pred.label, "tier_budget": pred.budget, "source": pred.source,
+                "first_limit": first, "p_start": round(self.monitor.p, 3), "t0": t0, "prompt": prompt}
+        headers = {"X-Lifeline-Tier": pred.label, "X-Lifeline-Priority": a.priority,
+                   "X-Lifeline-Budget": str(first)}
+        return StreamingResponse(self._stream(a, up, h, r, meta), media_type="text/event-stream", headers=headers)
+
+    async def _stream(self, a: Active, up: dict, h: dict[str, str], r: httpx.Response, meta: dict):
+        parts: list[str] = []
+        done_before, seg, prompt_tokens = 0, 0, None
+        finish, cut, announced = None, False, False
+        cap = a.limit
+        try:
+            while True:
+                action, left = None, 0
+                async for line in r.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    ev = json.loads(data)
+                    u = ev.get("usage")
+                    text = ""
+                    for ch in ev.get("choices") or []:
+                        if ch.get("text"):
+                            text += ch["text"]
+                            if not u:
+                                seg += 1
+                        if ch.get("finish_reason"):
+                            finish = ch["finish_reason"]
+                    if u:
+                        seg = u.get("completion_tokens", seg)
+                        if prompt_tokens is None:
+                            prompt_tokens = u.get("prompt_tokens")
+                    a.used = done_before + seg
+                    if text:
+                        parts.append(text)
+                        yield sse({"object": "text_completion", "model": up.get("model"),
+                                   "choices": [{"index": 0, "text": text, "finish_reason": None}]})
+                    if a.limit < cap and finish is None:
+                        if self.controller.notice == "announced" and not announced and a.used < a.limit:
+                            action, left = "announce", a.limit - a.used
+                            break
+                        if a.used >= a.limit:
+                            action = "cut"
+                            break
+                await r.aclose()
+                if action is None:
+                    break
+                if action == "cut":
+                    cut, finish = True, "length"
+                    self.counts["cut"] += 1
+                    break
+                announced = True
+                self.counts["announced"] += 1
+                notice = self.notice_text.format(N=left)
+                parts.append(notice)
+                yield sse({"object": "text_completion", "model": up.get("model"),
+                           "choices": [{"index": 0, "text": notice, "finish_reason": None}]})
+                done_before, seg, cap, finish = a.used, 0, a.limit, None
+                r = await self._open({**up, "prompt": up["prompt"] + "".join(parts), "max_tokens": left}, h)
+                if r.status_code >= 400:
+                    await r.aread()
+                    self.counts["upstream_errors"] += 1
+                    cut, finish = True, "length"
+                    break
+            finish = finish or "length"
+            info = {"tier": meta["tier"], "priority": a.priority, "priority_source": a.priority_source,
+                    "budget": meta["first_limit"], "limit": a.limit, "cut": cut or announced,
+                    "cut_from": a.cut_from, "announced": announced, "policy": self.controller.policy}
+            yield sse({"object": "text_completion", "choices": [{"index": 0, "text": "", "finish_reason": finish}]})
+            yield sse({"object": "text_completion", "choices": [],
+                       "usage": {"prompt_tokens": prompt_tokens or 0, "completion_tokens": a.used,
+                                 "total_tokens": (prompt_tokens or 0) + a.used},
+                       "lifeline": info})
+            yield sse("[DONE]")
+        finally:
+            await r.aclose()
+            self.controller.finish(a)
+            natural = finish == "stop" and not cut and not announced
+            obs = self.clf.observe(a.rid, a.used, finished=natural, model=meta["model"])
+            if self.log is not None:
+                row = {**{k: v for k, v in meta.items() if k != "t0"}, "ts": meta["t0"],
+                       "latency_s": round(time.time() - meta["t0"], 3), "used": a.used, "finish": finish,
+                       "natural": natural, "cut": cut, "announced": announced, "limit": a.limit,
+                       "cut_from": a.cut_from, "priority": a.priority, "priority_source": a.priority_source,
+                       "p_end": round(self.monitor.p, 3), "policy": self.controller.policy,
+                       "notice": self.controller.notice, "observed": obs.get("label")}
+                self.log.write(json.dumps(row) + "\n")
+                self.log.flush()
+
+    async def models(self, request: Request) -> Response:
+        if not self.authorized(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        r = await self.http.get(f"{self.upstream}/models", headers=self._up_headers({}))
+        return Response(r.content, status_code=r.status_code, media_type=r.headers.get("content-type"))
+
+    async def admin_policy(self, request: Request) -> Response:
+        if not self.authorized(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        body = await request.json()
+        try:
+            self.controller.set_policy(body.get("policy", self.controller.policy), body.get("notice"))
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        if "reject_waiting" in body:
+            self.reject_waiting = float(body["reject_waiting"])
+        return JSONResponse(self.controller.stats())
+
+    def stats(self) -> dict:
+        return {"gateway": {**self.counts, "deferred_s": round(self.counts["deferred_s"], 2),
+                            "reject_waiting": self.reject_waiting},
+                "controller": self.controller.stats(), "pressure": self.monitor.stats(),
+                "priority": self.refiner.stats(), "classifier": self.clf.stats()}
+
+
+def create_app(gw: Gateway, *, state_path: str | Path | None = None, background: bool = True) -> Starlette:
+    async def stats(request: Request) -> Response:
+        return JSONResponse(gw.stats())
+
+    async def health(request: Request) -> Response:
+        return JSONResponse({"ok": True, "policy": gw.controller.policy})
+
+    @asynccontextmanager
+    async def lifespan(app: Starlette):
+        tasks = []
+        if background:
+            tasks = [asyncio.create_task(gw.monitor.run()), asyncio.create_task(gw.controller.run())]
+        try:
+            yield
+        finally:
+            for t in tasks:
+                t.cancel()
+            if state_path:
+                gw.clf.save(state_path)
+            if gw.clf.jev is not None:
+                await gw.clf.jev.aclose()
+            await gw.http.aclose()
+            if gw.log is not None:
+                gw.log.close()
+
+    return Starlette(routes=[
+        Route("/v1/completions", gw.completions, methods=["POST"]),
+        Route("/v1/models", gw.models, methods=["GET"]),
+        Route("/v1/stats", stats, methods=["GET"]),
+        Route("/admin/policy", gw.admin_policy, methods=["POST"]),
+        Route("/health", health, methods=["GET"]),
+    ], lifespan=lifespan)

@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # Bring up (or restart) the vLLM servers on EC2, one GPU per tier (rt, batch).
-# Usage: ./up.sh [rt] [batch]   (default: both) -> prints LIFELINE_*_BASE_URL / LIFELINE_API_KEY
+# Usage: ./up.sh [batch]   (the rt GPU is now the Brownout Jev box, see infra/brownout) -> prints LIFELINE_*_BASE_URL / LIFELINE_API_KEY
 # Settings in config.env. Credentials: secrets.env (not in git, get it from Liam), or any AWS
 # profile/role for the account (CI uses an OIDC role); the vLLM API key is read from SSM if not set
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 
 TIERS=("$@")
-[[ ${#TIERS[@]} -gt 0 ]] || TIERS=(rt batch)
+[[ ${#TIERS[@]} -gt 0 ]] || TIERS=(batch)
 for tier in "${TIERS[@]}"; do
-  [[ "$tier" == rt || "$tier" == batch ]] || { echo "unknown tier: $tier (use rt or batch)" >&2; exit 1; }
+  if [[ "$tier" == rt ]]; then
+    echo "the rt GPU is now the Brownout Jev box (brownout-jev); use infra/brownout/up.sh" >&2
+    exit 1
+  fi
+  [[ "$tier" == batch ]] || { echo "unknown tier: $tier (use batch)" >&2; exit 1; }
 done
 
 INSTANCE_TYPE=${INSTANCE_TYPE:-g5.xlarge}
