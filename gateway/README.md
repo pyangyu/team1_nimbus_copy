@@ -25,7 +25,7 @@ agent ──> gateway :9000 ─────────────────�
 |---|---|
 | Think phase (`X-Lifeline-Phase: think`, streaming) | Predicts the bucket and priority, then streams from vLLM with `max_tokens` = the current limit. It cuts the request if the limit drops, and calls `observe` at the end. |
 | Answer phase, budget-drop continuations, anything else | Passed through unchanged. |
-| A new call: think phase, or answer phase with budget 0 | Goes through admission first (`reject` and `defer` policies). The answer phase of a call already running is never rejected. |
+| The first call of a new workflow (`X-Lifeline-Workflow` not seen before) | Goes through admission first (`reject` and `defer` policies). Later calls of an admitted workflow are never rejected, so a rate limiter turns away new work, not work that is half done. |
 
 The think response carries these headers:
 - `X-Lifeline-Tier`: the bucket label.

@@ -4,6 +4,7 @@ import asyncio
 import json
 import time
 import uuid
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -45,6 +46,8 @@ class Gateway:
         if log_path:
             Path(log_path).parent.mkdir(parents=True, exist_ok=True)
             self.log = open(log_path, "a", encoding="utf-8")
+        self.admitted: OrderedDict[str, float] = OrderedDict()
+        self.max_admitted = 100_000
         self.counts = {"requests": 0, "think": 0, "passthrough": 0, "rejected": 0, "deferred": 0,
                        "deferred_s": 0.0, "cut": 0, "announced": 0, "upstream_errors": 0}
 
@@ -87,9 +90,15 @@ class Gateway:
         phase = h.get("x-lifeline-phase")
         budget = int(h.get("x-lifeline-thinking-budget") or 0)
         continuation = "x-lifeline-budget-drop" in h
-        if phase is None or (phase == "think" and not continuation) or (phase == "answer" and budget <= 0):
+        wf = h.get("x-lifeline-workflow")
+        new_call = phase is None or (phase == "think" and not continuation) or (phase == "answer" and budget <= 0)
+        if new_call and (wf is None or wf not in self.admitted):
             if (rejected := await self.admit()) is not None:
                 return rejected
+            if wf is not None:
+                self.admitted[wf] = time.time()
+                while len(self.admitted) > self.max_admitted:
+                    self.admitted.popitem(last=False)
         if phase == "think" and not continuation and body.get("stream"):
             return await self.think(body, h)
         return await self.passthrough(body, h)

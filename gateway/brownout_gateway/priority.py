@@ -48,8 +48,9 @@ def from_answer(answer: dict | None) -> str | None:
 
 
 class PriorityRefiner:
-    def __init__(self, jev=None, *, max_inflight: int = 1):
+    def __init__(self, jev=None, *, max_inflight: int = 1, wait_tries: int = 40, wait_s: float = 0.25):
         self.jev = jev
+        self.wait_tries, self.wait_s = wait_tries, wait_s
         self.max_inflight = max_inflight
         self.inflight = 0
         self.asked = self.answered = self.dropped = 0
@@ -66,6 +67,10 @@ class PriorityRefiner:
     async def _ask(self, target, cls, step, deadline_ms, prompt) -> None:
         self.asked += 1
         try:
+            for _ in range(self.wait_tries):
+                if self.jev.inflight < self.jev.max_inflight:
+                    break
+                await asyncio.sleep(self.wait_s)
             answers = await self.jev.post({"request": {"prompt_head": prompt[:1500]}},
                                           {"priority": question(cls, step, deadline_ms)})
         finally:

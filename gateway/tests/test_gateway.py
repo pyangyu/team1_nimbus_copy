@@ -259,3 +259,27 @@ def test_math_agent_sees_rejection(run):
             await client.aclose()
     with pytest.raises(llm.Rejected):
         run(go())
+
+
+def test_admitted_workflow_is_never_rejected_midway(run):
+    gw, fake, c = make(policy="reject", reject_waiting=8)
+    first = run(c.post("/v1/completions", json=body("easy"), headers=think_headers(wf="early")))
+    gw.monitor.set(20, 4)
+    later = run(c.post("/v1/completions", json=body("easy"), headers=think_headers(step="verify.0", wf="early")))
+    new = run(c.post("/v1/completions", json=body("easy"), headers=think_headers(wf="late")))
+    assert first.status_code == 200 and later.status_code == 200 and new.status_code == 429
+
+
+def test_refiner_waits_for_busy_jev(run):
+    seen = []
+    jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev(seen, prio=2))
+    ref = PriorityRefiner(jev, wait_s=0.01)
+    a = Active("r", 1000, 1000, "normal", 1000)
+    async def go():
+        jev.inflight = 1
+        ref.refine(a, "agentic", "solve.0", None, "prompt")
+        await asyncio.sleep(0.05)
+        jev.inflight = 0
+        await asyncio.sleep(0.05)
+    run(go())
+    assert a.priority == "high" and jev.skipped_busy == 0
