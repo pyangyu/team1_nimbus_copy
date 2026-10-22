@@ -81,7 +81,16 @@ EOF
   else
     state=$($AWS ec2 describe-instances --instance-ids "$id" --query 'Reservations[0].Instances[0].State.Name' --output text)
     if [[ "$state" == "stopping" ]]; then $AWS ec2 wait instance-stopped --instance-ids "$id"; state=stopped; fi
-    if [[ "$state" == "stopped" ]]; then $AWS ec2 start-instances --instance-ids "$id" >/dev/null; echo "started $name $id" >&2; fi
+    if [[ "$state" == "stopped" ]]; then
+      for try in 1 2 3 4 5 6 7 8 9 10; do
+        if $AWS ec2 start-instances --instance-ids "$id" >/dev/null 2>/tmp/vllm-start.err; then break; fi
+        grep -q InsufficientInstanceCapacity /tmp/vllm-start.err || { cat /tmp/vllm-start.err >&2; exit 1; }
+        [[ $try -lt 10 ]] || { echo "no capacity for $name after $try tries" >&2; exit 1; }
+        echo "no capacity for $name in its zone, retrying in 60 s ($try/10)" >&2
+        sleep 60
+      done
+      echo "started $name $id" >&2
+    fi
   fi
   IDS+=("$id")
 }

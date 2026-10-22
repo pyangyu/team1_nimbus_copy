@@ -11,11 +11,11 @@ for name in "$JEV_NAME" "$LLM_NAME" "$AGENT_NAME"; do
   state=$($AWS ec2 describe-instances --instance-ids "$id" --query 'Reservations[0].Instances[0].State.Name' --output text)
   if [[ "$state" == stopping ]]; then $AWS ec2 wait instance-stopped --instance-ids "$id"; state=stopped; fi
   if [[ "$state" == stopped ]]; then
-    for try in 1 2 3 4 5 6; do
+    for try in 1 2 3 4 5 6 7 8 9 10; do
       if $AWS ec2 start-instances --instance-ids "$id" >/dev/null 2>/tmp/brownout-start.err; then break; fi
       grep -q InsufficientInstanceCapacity /tmp/brownout-start.err || { cat /tmp/brownout-start.err >&2; exit 1; }
-      [[ $try -lt 6 ]] || { echo "no capacity for $name after $try tries" >&2; exit 1; }
-      echo "no capacity for $name in its zone, retrying in 60 s ($try/6)" >&2
+      [[ $try -lt 10 ]] || { echo "no capacity for $name after $try tries" >&2; exit 1; }
+      echo "no capacity for $name in its zone, retrying in 60 s ($try/10)" >&2
       sleep 60
     done
     STARTED+=("$id")
