@@ -3,6 +3,8 @@ export HOME=/root PATH=/root/.local/bin:/snap/bin:/usr/local/bin:$PATH
 REGION=us-east-1
 BUCKET=capstone-ci-826671498662
 export REGION BUCKET
+JEV_PORTS=${JEV_PORTS:-"8791 8792"}
+JEV_CONCURRENCY=${JEV_CONCURRENCY:-8}
 need_tools() {
   command -v aws >/dev/null || snap install aws-cli --classic >/dev/null
   command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null

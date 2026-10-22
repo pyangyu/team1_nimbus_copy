@@ -11,6 +11,11 @@ on:
         type: choice
         options: [smoke, full]
         default: smoke
+      hard_dataset:
+        description: "full suite: second sweep after GSM8K (none = GSM8K only)"
+        type: choice
+        options: [math500, none]
+        default: math500
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -161,7 +166,9 @@ jobs:
           aws ec2 describe-instances --filters Name=tag:Name,Values=lifeline-vllm-batch \
             --query 'Reservations[0].Instances[0].InstanceId' --output text >> /tmp/brownout-started
       - name: Start the boxes, set up Open-Jev, deploy, sweep the policies
-        run: infra/brownout/e2e.sh "${{ github.sha }}"
+        run: |
+          if [ "${{ inputs.hard_dataset }}" = none ]; then export BROWNOUT_HARD_DATASET=""; fi
+          infra/brownout/e2e.sh "${{ github.sha }}"
       - uses: aws-actions/configure-aws-credentials@v4
         if: always()
         with:

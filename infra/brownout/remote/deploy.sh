@@ -11,6 +11,26 @@ tar xzf /tmp/src.tgz -C $SRC
 PY=/opt/brownout/venv/bin/python
 if [[ $ROLE == jev ]]; then
   uv pip install -q --python $PY -e $SRC/classifier -e $SRC/gateway
+  JEV_URLS=""
+  for port in $JEV_PORTS; do
+    systemctl enable "open-jev@$port" >/dev/null 2>&1
+    systemctl restart "open-jev@$port"
+    JEV_URLS+="${JEV_URLS:+,}http://127.0.0.1:$port/v1/systemone"
+  done
+  for port in $JEV_PORTS; do
+    if ! wait_http "http://127.0.0.1:$port/health" 60; then
+      journalctl -u "open-jev@$port" --no-pager -n 60
+      echo "Open-Jev on :$port did not become healthy"
+      exit 1
+    fi
+  done
+  t0=$(date +%s.%N)
+  for port in $JEV_PORTS; do
+    curl -sf -H 'Content-Type: application/json' "http://127.0.0.1:$port/v1/systemone" -d '{"model":"open-jev","state":{"request":"Prove that n^3 - n is divisible by 6."},"questions":{"tier":{"type":"score","instructions":"How many thinking tokens will the model use?","criteria":["0-32","32-128","128-256","256-512","512-1K","1K-2K","2K-4K","4K-8K","8K-16K","16K+"]}}}' \
+      | head -c 200 &
+  done
+  wait
+  echo; echo "probes on all Jev servers took $(echo "$(date +%s.%N) - $t0" | bc) s"
   umask 077
   echo "LIFELINE_API_KEY=$(api_key)" > /etc/brownout-gateway.env
   umask 022
@@ -18,10 +38,10 @@ if [[ $ROLE == jev ]]; then
   [[ ! -f /var/lib/brownout/gateway.jsonl ]] || mv /var/lib/brownout/gateway.jsonl "/var/lib/brownout/gateway-$(date +%s).jsonl"
   cat > /etc/systemd/system/brownout-gateway.service <<UNIT
 [Unit]
-After=network-online.target open-jev.service
+After=network-online.target
 [Service]
 EnvironmentFile=/etc/brownout-gateway.env
-ExecStart=$PY -m brownout_gateway.cli --upstream $UPSTREAM --host 0.0.0.0 --port 9000 --jev-url http://127.0.0.1:8791/v1/systemone --state /var/lib/brownout/classifier.npz --log /var/lib/brownout/gateway.jsonl
+ExecStart=$PY -m brownout_gateway.cli --upstream $UPSTREAM --host 0.0.0.0 --port 9000 --jev-url $JEV_URLS --jev-concurrency $JEV_CONCURRENCY --state /var/lib/brownout/classifier.npz --log /var/lib/brownout/gateway.jsonl
 Restart=always
 [Install]
 WantedBy=multi-user.target

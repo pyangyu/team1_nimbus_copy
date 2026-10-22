@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import numpy as np
 import httpx
 
@@ -14,15 +16,18 @@ OBJECTIVE = (
 
 
 class JevPrior:
-    def __init__(self, buckets: Buckets, url: str = "http://127.0.0.1:8791/v1/systemone", *,
+    def __init__(self, buckets: Buckets, url: str | list[str] = "http://127.0.0.1:8791/v1/systemone", *,
                  api_key: str | None = None, model: str = "open-jev", timeout: float = 2.0,
                  head_chars: int = 1000, tail_chars: int = 300, max_inflight: int = 1,
                  transport: httpx.AsyncBaseTransport | None = None):
-        self.buckets, self.url, self.model = buckets, url, model
+        self.urls = [u.strip() for u in (url.split(",") if isinstance(url, str) else url) if u.strip()]
+        self.url_inflight = {u: 0 for u in self.urls}
+        self.buckets, self.url, self.model = buckets, self.urls[0], model
         self.head_chars, self.tail_chars = head_chars, tail_chars
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self.http = httpx.AsyncClient(timeout=timeout, headers=headers, transport=transport)
         self.calls = self.failures = self.skipped_busy = self.inflight = 0
+        self.call_s = 0.0
         self.max_inflight = max_inflight
         self.last_error: str | None = None
 
@@ -54,8 +59,11 @@ class JevPrior:
             return None
         self.calls += 1
         self.inflight += 1
+        url = min(self.urls, key=self.url_inflight.__getitem__)
+        self.url_inflight[url] += 1
+        t0 = time.monotonic()
         try:
-            r = await self.http.post(self.url, json={"model": self.model, "state": state, "questions": questions})
+            r = await self.http.post(url, json={"model": self.model, "state": state, "questions": questions})
             r.raise_for_status()
             return r.json()["answers"]
         except Exception as e:
@@ -63,6 +71,8 @@ class JevPrior:
             self.last_error = f"{type(e).__name__}: {e}"
             return None
         finally:
+            self.call_s += time.monotonic() - t0
+            self.url_inflight[url] -= 1
             self.inflight -= 1
 
     def _probs(self, answers: dict | None) -> np.ndarray | None:

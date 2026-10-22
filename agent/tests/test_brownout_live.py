@@ -49,7 +49,7 @@ COLUMNS = ("dataset", "policy", "n", "accuracy", "deadline_met", "correct_and_on
            "rejected_workflows",
            "latency_p50_s", "latency_p90_s", "thinking_tokens_mean", "think", "cut", "announced",
            "rejected", "pressured_samples", "jev_before_first_token", "jev_during_decode", "jev_tier_lowered",
-           "jev_mean_wait_s", "serial_wait_mean_s", "oracle_hit_rate", "paired_n", "online_exact", "jev_exact",
+           "jev_mean_wait_s", "jev_mean_call_s", "serial_wait_mean_s", "oracle_hit_rate", "paired_n", "online_exact", "jev_exact",
            "online_within_one", "jev_within_one", "online_under", "jev_under")
 JEV_COUNTERS = ("before_first_token", "during_decode", "tier_lowered", "asked", "wait_s")
 RESULTS: list[dict] = []
@@ -82,6 +82,12 @@ def compare(before: dict, after: dict) -> dict:
         for k in ("exact", "within_one", "under"):
             row[f"{src}_{k}"] = round((a[src][k] - b[src][k]) / n, 4) if n else None
     return row
+
+
+def call_s(before: dict, after: dict) -> float | None:
+    b, a = before["classifier"]["jev"] or {}, after["classifier"]["jev"] or {}
+    calls = a.get("calls", 0) - b.get("calls", 0)
+    return round((a.get("call_s", 0) - b.get("call_s", 0)) / calls, 3) if calls and "call_s" in a else None
 
 
 def write_results() -> None:
@@ -122,6 +128,7 @@ def test_policy_under_load(dataset, spec):
            **d, "pressured_samples": sum(hist[1:]), "observed": observed(after) - observed(before),
            **{f"jev_{k}": j[k] for k in ("before_first_token", "during_decode", "tier_lowered")},
            "jev_mean_wait_s": round(j["wait_s"] / j["asked"], 3) if j["asked"] else None,
+           "jev_mean_call_s": call_s(before, after),
            "serial_wait_mean_s": round(d["serial_wait_s"] / d["serial_waits"], 3) if d["serial_waits"] else None,
            "oracle_hit_rate": round(d["oracle_hits"] / oracle, 3) if oracle else None,
            **compare(before, after)}

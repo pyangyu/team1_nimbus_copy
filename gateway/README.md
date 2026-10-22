@@ -19,7 +19,7 @@ agent ──> gateway :9000 ─────────────────�
             | word model (comparison, shadow)              |
             | controller: limit = max(base x (1 - p x w), used + 64), only shrinks
             v
-          Open-Jev :8791 (same GPU box, own venv)
+          Open-Jev :8791, :8792 (same GPU box, own venv; batching servers, see ../jevserve)
 ```
 
 ## Requests
@@ -95,7 +95,8 @@ changes, priority changes, drops, and the mean wait in the queue.
 ```
 pip install -e ../classifier -e .
 LIFELINE_API_KEY=... brownout-gateway --upstream http://<vllm>:8000/v1 --host 0.0.0.0 \
-  --jev-url http://127.0.0.1:8791/v1/systemone --state classifier.npz --log gateway.jsonl
+  --jev-url http://127.0.0.1:8791/v1/systemone,http://127.0.0.1:8792/v1/systemone --jev-concurrency 8 \
+  --state classifier.npz --log gateway.jsonl
 ```
 
 Endpoints:

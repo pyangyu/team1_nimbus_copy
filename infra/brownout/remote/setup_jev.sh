@@ -38,27 +38,20 @@ PY
   touch $MARK
   echo "installed Open-Jev $OPENJEV_COMMIT"
 fi
-cat > /etc/systemd/system/open-jev.service <<UNIT
+if systemctl list-unit-files open-jev.service >/dev/null 2>&1; then
+  systemctl disable --now open-jev >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/open-jev.service
+fi
+cat > /etc/systemd/system/open-jev@.service <<UNIT
 [Unit]
 After=network-online.target
 [Service]
 Environment=HF_HOME=/opt/hf
 WorkingDirectory=$JEV/Open-Jev
-ExecStart=$JEV/venv/bin/python -m jev.server --checkpoint $JEV/models/Open-Jev-2B/package/checkpoint --host 127.0.0.1 --port 8791
+ExecStart=$JEV/venv/bin/python /opt/brownout/src/jevserve/batch_server.py --checkpoint $JEV/models/Open-Jev-2B/package/checkpoint --host 127.0.0.1 --port %i
 Restart=always
 [Install]
 WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
-systemctl enable open-jev >/dev/null 2>&1
-systemctl is-active --quiet open-jev || systemctl restart open-jev
-if ! wait_http http://127.0.0.1:8791/health 60; then
-  journalctl -u open-jev --no-pager -n 60
-  echo "Open-Jev did not become healthy"
-  exit 1
-fi
-curl -s http://127.0.0.1:8791/health; echo
-t0=$(date +%s.%N)
-curl -sf -H 'Content-Type: application/json' http://127.0.0.1:8791/v1/systemone -d '{"model":"open-jev","state":{"request":"Prove that n^3 - n is divisible by 6."},"questions":{"tier":{"type":"score","instructions":"How many thinking tokens will the model use?","criteria":["0-32","32-128","128-256","256-512","512-1K","1K-2K","2K-4K","4K-8K","8K-16K","16K+"]}}}' \
-  | head -c 400; echo
-echo "probe took $(echo "$(date +%s.%N) - $t0" | bc) s"
+echo "Open-Jev installed; deploy.sh starts open-jev@{${JEV_PORTS// /,}} from the deployed source"

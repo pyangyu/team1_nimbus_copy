@@ -60,7 +60,7 @@ def cli(argv: list[str] | None = None) -> None:
     ap.add_argument("--quantile", type=float, default=0.5)
     ap.add_argument("--state")
     ap.add_argument("--log")
-    ap.add_argument("--jev-url")
+    ap.add_argument("--jev-url", help="one Jev endpoint, or several comma-separated; each call goes to the least busy")
     ap.add_argument("--jev-key-env", default="JEV_API_KEY")
     ap.add_argument("--jev-timeout", type=float, default=2.0)
     ap.add_argument("--jev-concurrency", type=int, default=1, help="Jev calls in flight at once")

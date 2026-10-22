@@ -45,6 +45,7 @@ exam night.
 | Brownout on AWS: agent box -> Jev GPU (Open-Jev-2B + gateway) -> vLLM GPU, policy sweep in CI | first version | [`infra/brownout/`](infra/brownout/) |
 | Budget-drop baselines and SFT/RL training (Qwen3-4B + LoRA) | in progress (Matthew) | |
 | Budget classifier (online, ten buckets, Jev predicts on every request, online word model kept as the comparison) | first version | [`classifier/`](classifier/) |
+| Open-Jev serving under bursts: several Open-Jev servers on the Jev GPU, each micro-batching concurrent calls | first version | [`jevserve/`](jevserve/) |
 | Gateway: pressure monitor, budget controller (in-flight cuts, silent or announced), cut-protection priority, Jev beside prefill with a queue for busy periods, baselines (none, reject, defer, uniform) | first version, in front of vLLM | [`gateway/`](gateway/) |
 | Cut-token injection inside the engine | todo (the gateway emulates it by aborting and continuing the stream) | |
 

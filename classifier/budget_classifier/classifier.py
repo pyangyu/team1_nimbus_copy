@@ -219,7 +219,11 @@ class BudgetClassifier:
             "updates": self.online.updates,
             "jev": None if self.jev is None else {"calls": self.jev.calls, "failures": self.jev.failures,
                                                     "skipped_busy": self.jev.skipped_busy,
-                                                    "last_error": self.jev.last_error},
+                                                    "last_error": self.jev.last_error,
+                                                    "servers": len(self.jev.urls),
+                                                    "call_s": round(self.jev.call_s, 3),
+                                                    "mean_call_s": round(self.jev.call_s / self.jev.calls, 3)
+                                                    if self.jev.calls else None},
             "versions": {str(m): v.summary() for m, v in self.versions.items()},
         }
 

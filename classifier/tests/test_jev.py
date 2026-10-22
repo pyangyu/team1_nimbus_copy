@@ -85,3 +85,20 @@ def slow_jev(seen, delay=0.05):
         await asyncio.sleep(delay)
         return inner.handler(req)
     return httpx.MockTransport(handler)
+
+
+def test_calls_spread_over_several_servers():
+    hosts = []
+    inner = slow_jev([])
+
+    async def handler(req):
+        hosts.append(req.url.host)
+        return await inner.handler(req)
+    jev = JevPrior(Buckets(), "http://jev1/v1/systemone,http://jev2/v1/systemone", max_inflight=2,
+                   transport=httpx.MockTransport(handler))
+
+    async def go():
+        return await asyncio.gather(jev.ask("a", []), jev.ask("b", []))
+    a, b = asyncio.run(go())
+    assert a is not None and b is not None and sorted(hosts) == ["jev1", "jev2"]
+    assert jev.call_s > 0 and set(jev.url_inflight.values()) == {0}

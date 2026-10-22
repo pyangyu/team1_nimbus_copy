@@ -2,6 +2,7 @@
 # Run the math agent through the Brownout gateway on AWS: bundle the commit, start the boxes, set up Open-Jev,
 # deploy, sweep the policies, collect results into ./brownout-results (relative to the caller's directory).
 # Usage: infra/brownout/e2e.sh [git-ref]    BROWNOUT_STOP=1 stops the boxes this run started.
+# BROWNOUT_HARD_DATASET= (empty) runs the GSM8K sweep only.
 set -euo pipefail
 CALLER=$PWD
 REF=${1:-HEAD}
@@ -33,7 +34,7 @@ ssm_script "$BROWNOUT_JEV_ID" 3600 remote/setup_jev.sh
 ssm_script "$BROWNOUT_JEV_ID" 1200 remote/deploy.sh "$SHA" jev "$BROWNOUT_LLM_URL"
 ssm_script "$BROWNOUT_AGENT_ID" 1200 remote/deploy.sh "$SHA" agent
 rc=0
-ssm_script "$BROWNOUT_AGENT_ID" 12000 remote/run_e2e.sh "$SHA" "$BROWNOUT_GATEWAY_URL" "$TAG" || rc=$?
+ssm_script "$BROWNOUT_AGENT_ID" 12000 remote/run_e2e.sh "$SHA" "$BROWNOUT_GATEWAY_URL" "$TAG" "${BROWNOUT_HARD_DATASET-math500}" || rc=$?
 ssm_script "$BROWNOUT_JEV_ID" 600 remote/collect_jev.sh "$SHA" "$TAG" || true
 
 mkdir -p "$RESULTS"

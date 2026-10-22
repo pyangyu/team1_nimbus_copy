@@ -78,7 +78,9 @@ budget-classifier serve --state runs/classifier.npz
 budget-classifier serve --jev-url http://127.0.0.1:8791/v1/systemone   # with a local Open-Jev
 ```
 
-For hosted Jev, put its URL in `--jev-url` and the key in `JEV_API_KEY`.
+For hosted Jev, put its URL in `--jev-url` and the key in `JEV_API_KEY`. `--jev-url` also takes
+several comma-separated URLs; each call goes to the server with the fewest calls in flight
+(see `../jevserve` for running several Open-Jev servers on one GPU).
 
 ## Replay (offline evaluation)
 

@@ -6,7 +6,7 @@ inside `brownout-internal-sg`, which allows ports 8000 and 9000 only between its
 | Box | Instance | Runs |
 |---|---|---|
 | `brownout-agent` | t3.small | the math agent: live tests and `loadgen` |
-| `brownout-jev` | g5.xlarge (the old `lifeline-vllm-rt`) | Open-Jev-2B on `127.0.0.1:8791` (its own venv: Open-Jev pins transformers 5.10.2), and the Brownout gateway on `:9000` |
+| `brownout-jev` | g5.xlarge (the old `lifeline-vllm-rt`) | Open-Jev-2B on `127.0.0.1:8791` and `:8792`, two batching servers (its own venv: Open-Jev pins transformers 5.10.2; see `../../jevserve`), and the Brownout gateway on `:9000` |
 | `lifeline-vllm-batch` | g5.xlarge | vLLM Qwen3-8B on `:8000` (unchanged, see `../vllm-ec2`) |
 
 The account's G quota (8 vCPU) fits exactly the two GPU boxes. That is why rt was
@@ -30,7 +30,11 @@ Jev box:
 - installs torch 2.14 (cu130), transformers 5.10.2, peft, accelerate and flash-linear-attention;
 - checks out Open-Jev at a pinned commit;
 - downloads the `ZefanCai/Open-Jev-2B` checkpoint and the `Qwen/Qwen3.5-2B` base;
-- installs `open-jev.service`, then probes one 10-bucket score question and prints the time.
+- installs the `open-jev@.service` template. `deploy.sh` (role `jev`) then starts one
+  `jevserve/batch_server.py` per port in `JEV_PORTS` from the deployed commit, probes each with a
+  10-bucket score question, and starts the gateway with all of their URLs.
+
+For a GSM8K-only sweep: `gh workflow run CI -f suite=full -f hard_dataset=none`.
 
 ## Run it
 
