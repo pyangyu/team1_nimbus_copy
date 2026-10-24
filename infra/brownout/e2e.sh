@@ -2,7 +2,8 @@
 # Run the math agent through the Brownout gateway on AWS: bundle the commit, start the boxes, set up Open-Jev,
 # deploy, sweep the policies, collect results into ./brownout-results (relative to the caller's directory).
 # Usage: infra/brownout/e2e.sh [git-ref]    BROWNOUT_STOP=1 stops the boxes this run started.
-# BROWNOUT_HARD_DATASET= (empty) runs the GSM8K sweep only. BROWNOUT_SUITE=realistic runs the capacity + rate-profile suite.
+# BROWNOUT_HARD_DATASET= (empty) runs the GSM8K sweep only. BROWNOUT_SUITE=realistic runs the capacity + rate-profile suite,
+# without Jev, with a second vLLM replica on the Jev box's GPU (BROWNOUT_LLM_ON_JEV=0 keeps one).
 set -euo pipefail
 CALLER=$PWD
 REF=${1:-HEAD}
@@ -30,11 +31,20 @@ $AWS s3 cp --quiet "/tmp/brownout-$SHA.tgz" "s3://$BUCKET/ci/$SHA/src.tgz"
 UP=$(./up.sh)
 eval "$UP"
 
+UPSTREAMS=$BROWNOUT_LLM_URL
 if [[ "${BROWNOUT_SUITE:-default}" == realistic ]]; then
   export BROWNOUT_JEV=${BROWNOUT_JEV:-0}
+  BROWNOUT_LLM_ON_JEV=${BROWNOUT_LLM_ON_JEV:-1}
+fi
+if [[ "${BROWNOUT_LLM_ON_JEV:-0}" == 1 ]]; then
+  [[ "${BROWNOUT_JEV:-1}" == 0 ]] || { echo "BROWNOUT_LLM_ON_JEV=1 needs BROWNOUT_JEV=0 (one GPU on the Jev box)" >&2; exit 1; }
+  cfg() { grep -E "^$1=" ../vllm-ec2/config.env | cut -d= -f2-; }
+  ssm_script "$BROWNOUT_LLM_ID" 300 remote/show_vllm.sh || true
+  ssm_script "$BROWNOUT_JEV_ID" 3600 remote/setup_llm.sh "$(cfg VLLM_IMAGE)" "$(cfg MODEL)" "$(cfg MAX_MODEL_LEN)"
+  UPSTREAMS="http://127.0.0.1:8000/v1,$BROWNOUT_LLM_URL"
 fi
 [[ "${BROWNOUT_JEV:-1}" == 0 ]] || ssm_script "$BROWNOUT_JEV_ID" 3600 remote/setup_jev.sh
-ssm_script "$BROWNOUT_JEV_ID" 1200 remote/deploy.sh "$SHA" jev "$BROWNOUT_LLM_URL"
+ssm_script "$BROWNOUT_JEV_ID" 1200 remote/deploy.sh "$SHA" jev "$UPSTREAMS"
 ssm_script "$BROWNOUT_AGENT_ID" 1200 remote/deploy.sh "$SHA" agent
 AGENT_TIMEOUT=12000
 if [[ "${BROWNOUT_SUITE:-default}" == realistic ]]; then

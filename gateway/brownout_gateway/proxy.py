@@ -22,6 +22,7 @@ from .controller import Active, Controller
 from .jevq import JevScheduler
 from .pressure import PressureMonitor
 from .priority import heuristic
+from .routing import Replica, Router
 
 DEFAULT_NOTICE = "\n\n<budget_cut left={N}>\n"
 
@@ -31,15 +32,23 @@ def sse(ev: dict | str) -> str:
 
 
 class Gateway:
-    def __init__(self, upstream: str, clf: BudgetClassifier, controller: Controller, monitor: PressureMonitor, *,
+    def __init__(self, upstream: str | list[str], clf: BudgetClassifier, controller: Controller,
+                 monitor: PressureMonitor, *, monitors: list[PressureMonitor] | None = None,
                  upstream_key: str | None = None, client_key: str | None = None,
                  log_path: str | Path | None = None,
                  reject_waiting: float = 8, defer_timeout: float = 60.0, defer_poll: float = 0.25,
                  admit_rate: float = 0.25, admit_burst: float = 8, clock=time.monotonic,
                  notice_text: str = DEFAULT_NOTICE, serial_timeout: float = 10.0,
                  http: httpx.AsyncClient | None = None):
-        self.upstream = upstream.rstrip("/")
-        self.clf, self.controller, self.monitor = clf, controller, monitor
+        urls = [u.strip().rstrip("/") for u in (upstream.split(",") if isinstance(upstream, str) else upstream)
+                if u.strip()]
+        monitors = monitors or [monitor] + [PressureMonitor() for _ in urls[1:]]
+        if len(monitors) != len(urls):
+            raise ValueError("one pressure monitor per upstream")
+        self.router = Router([Replica(u, m) for u, m in zip(urls, monitors)])
+        self.upstream = urls[0]
+        self.clf, self.controller, self.monitor = clf, controller, monitors[0]
+        controller.monitors = monitors
         self.jevq = JevScheduler(clf, controller, concurrency=clf.jev.max_inflight if clf.jev else 1)
         self.upstream_key, self.client_key = upstream_key, client_key
         self.reject_waiting, self.defer_timeout, self.defer_poll = reject_waiting, defer_timeout, defer_poll
@@ -68,9 +77,13 @@ class Gateway:
     def authorized(self, request: Request) -> bool:
         return not self.client_key or request.headers.get("authorization") == f"Bearer {self.client_key}"
 
-    async def _open(self, body: dict, h: dict[str, str]) -> httpx.Response:
-        req = self.http.build_request("POST", f"{self.upstream}/completions", json=body, headers=self._up_headers(h))
+    async def _open(self, body: dict, h: dict[str, str], replica: int = 0) -> httpx.Response:
+        url = self.router.replicas[replica].url
+        req = self.http.build_request("POST", f"{url}/completions", json=body, headers=self._up_headers(h))
         return await self.http.send(req, stream=True)
+
+    def waiting(self) -> float:
+        return sum(r.monitor.waiting for r in self.router.replicas)
 
     def refill(self) -> None:
         self.tokens, self.tokens_at = float(self.admit_burst), self.clock()
@@ -89,14 +102,14 @@ class Gateway:
         if pol == "reject" and not self.take_token():
             self.counts["rejected"] += 1
             return JSONResponse({"error": "rate limited", "admit_rate": self.admit_rate}, status_code=429)
-        if pol == "defer" and self.monitor.waiting > self.reject_waiting:
+        if pol == "defer" and self.waiting() > self.reject_waiting:
             self.counts["deferred"] += 1
             t0 = time.perf_counter()
-            while self.monitor.waiting > self.reject_waiting:
+            while self.waiting() > self.reject_waiting:
                 if time.perf_counter() - t0 > self.defer_timeout:
                     self.counts["deferred_s"] += time.perf_counter() - t0
                     self.counts["rejected"] += 1
-                    return JSONResponse({"error": "deferred too long", "waiting": self.monitor.waiting}, status_code=429)
+                    return JSONResponse({"error": "deferred too long", "waiting": self.waiting()}, status_code=429)
                 await asyncio.sleep(self.defer_poll)
             self.counts["deferred_s"] += time.perf_counter() - t0
         return None
@@ -119,18 +132,21 @@ class Gateway:
                 self.admitted[wf] = time.time()
                 while len(self.admitted) > self.max_admitted:
                     self.admitted.popitem(last=False)
+        k = self.router.route(f"{wf}:{h.get('x-lifeline-step', '-')}" if wf is not None else None, new_call)
+        self.router.replicas[k].requests += 1
         if phase == "think" and not continuation and body.get("stream"):
-            return await self.think(body, h)
-        return await self.passthrough(body, h)
+            return await self.think(body, h, k)
+        return await self.passthrough(body, h, k)
 
-    async def passthrough(self, body: dict, h: dict[str, str]) -> Response:
+    async def passthrough(self, body: dict, h: dict[str, str], replica: int = 0) -> Response:
         self.counts["passthrough"] += 1
-        r = await self._open(body, h)
+        r = await self._open(body, h, replica)
         return StreamingResponse(r.aiter_raw(), status_code=r.status_code,
                                  media_type=r.headers.get("content-type"), background=BackgroundTask(r.aclose))
 
-    async def think(self, body: dict, h: dict[str, str]) -> Response:
+    async def think(self, body: dict, h: dict[str, str], replica: int = 0) -> Response:
         self.counts["think"] += 1
+        self.router.replicas[replica].think += 1
         t0 = time.time()
         wf, step = h.get("x-lifeline-workflow", "-"), h.get("x-lifeline-step", "-")
         cls = h.get("x-lifeline-class", "agentic")
@@ -142,16 +158,17 @@ class Gateway:
         pred = self.clf.predict_online(rid, prompt, body.get("model"))
         key = hashlib.sha256(prompt.encode()).hexdigest()
         prio = heuristic(cls, step, dl)
+        mon = self.router.replicas[replica].monitor
         if self.controller.predictor == "oracle":
             known = self.oracle.get(key)
             self.counts["oracle_hits" if known is not None else "oracle_misses"] += 1
             k = self.clf.buckets.index(known) if known is not None else None
             a = Active(rid, requested, requested if k is None else self.clf.buckets.budget(k), prio, requested,
-                       tier="unknown" if k is None else self.clf.buckets.label(k))
+                       tier="unknown" if k is None else self.clf.buckets.label(k), replica=replica)
         elif self.controller.predictor == "online" or self.clf.jev is None:
-            a = Active(rid, requested, pred.budget, prio, requested, tier=pred.label)
+            a = Active(rid, requested, pred.budget, prio, requested, tier=pred.label, replica=replica)
         else:
-            a = Active(rid, requested, requested, prio, requested, tier="pending")
+            a = Active(rid, requested, requested, prio, requested, tier="pending", replica=replica)
         self.controller.start(a)
         answered = self.jevq.submit(a, cls, step, dl)
         if self.controller.predictor == "jev-serial" and answered is not None:
@@ -166,7 +183,7 @@ class Gateway:
         first = a.limit
         up = {**body, "max_tokens": a.limit, "stream": True,
               "stream_options": {"include_usage": True, "continuous_usage_stats": True}}
-        r = await self._open(up, h)
+        r = await self._open(up, h, replica)
         if r.status_code >= 400:
             content = await r.aread()
             await r.aclose()
@@ -176,7 +193,8 @@ class Gateway:
             return Response(content, status_code=r.status_code, media_type=r.headers.get("content-type"))
         meta = {"rid": rid, "workflow": wf, "step": step, "class": cls, "model": body.get("model"),
                 "requested": requested, "online_tier": pred.label, "online_budget": pred.budget, "source": pred.source,
-                "first_limit": first, "p_start": round(self.monitor.p, 3), "t0": t0, "prompt": prompt, "key": key}
+                "first_limit": first, "p_start": round(mon.p, 3), "replica": replica, "t0": t0, "prompt": prompt,
+                "key": key}
         headers = {"X-Lifeline-Tier": a.tier, "X-Lifeline-Priority": a.priority,
                    "X-Lifeline-Budget": str(first)}
         return StreamingResponse(self._stream(a, up, h, r, meta), media_type="text/event-stream", headers=headers)
@@ -238,7 +256,7 @@ class Gateway:
                 yield sse({"object": "text_completion", "model": up.get("model"),
                            "choices": [{"index": 0, "text": notice, "finish_reason": None}]})
                 done_before, seg, cap, last_left, finish = a.used, 0, a.limit, left, None
-                r = await self._open({**up, "prompt": up["prompt"] + "".join(parts), "max_tokens": left}, h)
+                r = await self._open({**up, "prompt": up["prompt"] + "".join(parts), "max_tokens": left}, h, a.replica)
                 if r.status_code >= 400:
                     await r.aread()
                     self.counts["upstream_errors"] += 1
@@ -251,7 +269,7 @@ class Gateway:
                     "priority_source": a.priority_source,
                     "budget": meta["first_limit"], "limit": a.limit, "cut": cut or announced,
                     "cut_from": a.cut_from, "announced": announced, "notices": notices,
-                    "policy": self.controller.policy}
+                    "policy": self.controller.policy, "replica": a.replica}
             yield sse({"object": "text_completion", "choices": [{"index": 0, "text": "", "finish_reason": finish}]})
             yield sse({"object": "text_completion", "choices": [],
                        "usage": {"prompt_tokens": prompt_tokens or 0, "completion_tokens": a.used,
@@ -271,7 +289,7 @@ class Gateway:
                        "natural": natural, "cut": cut, "announced": notices > 0, "notices": notices,
                        "limit": a.limit,
                        "cut_from": a.cut_from, "priority": a.priority, "priority_source": a.priority_source,
-                       "p_end": round(self.monitor.p, 3), "policy": self.controller.policy,
+                       "p_end": round(self.controller.p(a), 3), "policy": self.controller.policy,
                        "notice": self.controller.notice, "observed": obs.get("label"),
                        "tier": a.tier, "tier_budget": a.tier_budget, "jev_tier": a.jev_tier, "jev_at": a.jev_at,
                        "predictor": self.controller.predictor}
@@ -311,7 +329,8 @@ class Gateway:
                             "oracle_prompts": len(self.oracle),
                             "reject_waiting": self.reject_waiting, "admit_rate": self.admit_rate,
                             "admit_burst": self.admit_burst},
-                "controller": self.controller.stats(), "pressure": self.monitor.stats(),
+                "controller": self.controller.stats(), "pressure": self.router.pressure_stats(),
+                "replicas": self.router.stats(),
                 "jev": self.jevq.stats(), "classifier": self.clf.stats()}
 
 
@@ -325,7 +344,9 @@ def create_app(gw: Gateway, *, state_path: str | Path | None = None, background:
         except ValueError:
             return JSONResponse({"error": "since must be a unix time"}, status_code=400)
         return JSONResponse({"interval": gw.monitor.interval, "columns": ["t", "p", "waiting", "running"],
-                             "samples": gw.monitor.since(since)})
+                             "samples": gw.monitor.since(since),
+                             "replicas": [{"url": r.url, "samples": r.monitor.since(since)}
+                                          for r in gw.router.replicas]})
 
     async def health(request: Request) -> Response:
         return JSONResponse({"ok": True, "policy": gw.controller.policy})
@@ -334,7 +355,8 @@ def create_app(gw: Gateway, *, state_path: str | Path | None = None, background:
     async def lifespan(app: Starlette):
         tasks = []
         if background:
-            tasks = [asyncio.create_task(gw.monitor.run()), asyncio.create_task(gw.controller.run())]
+            tasks = [asyncio.create_task(r.monitor.run()) for r in gw.router.replicas]
+            tasks.append(asyncio.create_task(gw.controller.run()))
         try:
             yield
         finally:

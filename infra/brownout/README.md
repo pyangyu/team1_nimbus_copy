@@ -90,10 +90,25 @@ vLLM GPU stands for one replica of a fleet: below capacity most of the time, sho
 above it, recovery after. It cuts thinking with the word-model predictor (`online`) only, and
 Jev is not used: `e2e.sh` sets `BROWNOUT_JEV=0`, which skips `setup_jev.sh`, stops the Open-Jev
 servers and starts the gateway without `--jev-url`, so no request is sent to Jev and priority
-comes from the header heuristic. It runs only `agent/tests/test_brownout_live.py` (not `test_live.py`):
+comes from the header heuristic.
+
+The Jev box's GPU then serves a second vLLM replica (`BROWNOUT_LLM_ON_JEV=1`, the default in
+this suite): `remote/setup_llm.sh` stops the Open-Jev servers and runs the same container as
+`lifeline-vllm-batch` (`VLLM_IMAGE`, `MODEL`, `MAX_MODEL_LEN` from `../vllm-ec2/config.env`,
+`--gpu-memory-utilization 0.92 --enable-prefix-caching`, as `../vllm-ec2/up.sh` writes it) as
+`vllm.service`, and waits until it answers. `remote/show_vllm.sh` prints the batch box's vLLM
+command line (key masked) and GPU memory into the log, to compare. The gateway, still on the Jev
+box's CPU, gets `--upstream http://127.0.0.1:8000/v1,http://<batch private IP>:8000/v1`, so it
+reaches the local replica on localhost and the other one inside `brownout-internal-sg` (port
+8000). `deploy.sh` waits for every upstream to answer before it starts the gateway. Routing and
+per-replica pressure are described in `../../gateway/README.md`. The next default-suite run's
+`setup_jev.sh` disables that `vllm.service` and removes the image and weights again, so a
+realistic run after a default run downloads them again (about 25 GB).
+
+It runs only `agent/tests/test_brownout_live.py` (not `test_live.py`):
 
 1. Capacity: policy `none`, closed loop. `BROWNOUT_CAPACITY_CONCURRENCY` workflows stay in flight,
-   so vLLM always has a queue. Workflows finishing between `BROWNOUT_CAPACITY_WARMUP_S` and
+   so vLLM always has a queue. C is for all replicas together. Workflows finishing between `BROWNOUT_CAPACITY_WARMUP_S` and
    warmup + `BROWNOUT_CAPACITY_S` give C in workflows/s (and thinking tokens/s). Workflows still
    running at the end are cancelled. `BROWNOUT_CAPACITY` skips this and uses the given C.
 2. Each policy in `BROWNOUT_POLICIES` runs the same rate profile: segments of
@@ -115,8 +130,9 @@ MATH bands and 90 s for GSM8K.
 | `BROWNOUT_PROFILE` | `180:0.7,120:1.2,180:0.7,180:1.5,240:0.7,120:2.0,180:0.7,240:1.2,300:0.7` (29 min; rate > 1 is a burst) |
 | `BROWNOUT_POLICIES` | `none,uniform,brownout:silent:online,brownout:announced:online` |
 | `BROWNOUT_JEV` | `0` in this suite, `1` otherwise (`1` deploys Open-Jev and passes `--jev-url` to the gateway) |
+| `BROWNOUT_LLM_ON_JEV` | `1` in this suite (second vLLM replica on the Jev box; needs `BROWNOUT_JEV=0`), `0` otherwise |
 | `BROWNOUT_CAPACITY` | unset (measure C) |
-| `BROWNOUT_CAPACITY_CONCURRENCY` | `32` workflows in flight |
+| `BROWNOUT_CAPACITY_CONCURRENCY` | `32` workflows in flight per replica |
 | `BROWNOUT_CAPACITY_WARMUP_S`, `BROWNOUT_CAPACITY_S` | `180`, `600` |
 | `BROWNOUT_TAIL_S` | `1200` |
 | `BROWNOUT_SEED` | `0` |
@@ -128,8 +144,8 @@ MATH bands and 90 s for GSM8K.
 AWS_PROFILE=rlwalkeradmin BROWNOUT_SUITE=realistic BROWNOUT_STOP=1 infra/brownout/e2e.sh <commit>
 ```
 
-With the defaults it takes about 3 hours: 15 min setup, 15 min capacity, and 30-40 min per
-policy. That is longer than the CI job (230 min) and the CI role session (4 h), so run it
+With the defaults it takes about 3.5 hours: 15-30 min setup (more when the second replica has
+to download the vLLM image and Qwen3-8B), 15 min capacity, and 30-40 min per policy. That is longer than the CI job (230 min) and the CI role session (4 h), so run it
 locally.
 
 Results (`brownout-results/`):
@@ -139,10 +155,13 @@ Results (`brownout-results/`):
   fraction of samples with a vLLM queue, mean in baseline and burst). Then goodput by MATH level and a pressure
   histogram per policy. Instead of the Jev columns, it reports the word model's accuracy over
   its last 200 uncensored labels of the run (`word_model_exact`, `_within_one`, `_under`) and
-  `jev_asked` (0 when Jev is off).
+  `jev_asked` (0 when Jev is off), think requests per replica (`replica_think`) and mean
+  pressure per replica (`p_mean_replicas`).
 - `results.json`: the same plus breakdowns by segment, by level and by level x phase.
 - `capacity/` and `realistic-<policy>/`: the loadgen output and `pressure.jsonl`, the
-  gateway's samples of `[t, p, waiting, running]` during the run (`GET /v1/pressure?since=<unix time>`).
+  gateway's samples of `[t, p, waiting, running, replica]` during the run
+  (`GET /v1/pressure?since=<unix time>`). The pressure columns pool the samples of all replicas;
+  `pressure.replicas` in `results.json` has each replica's.
 
 The test asserts only that there were no upstream or client errors, that the classifier saw
 every think request (less any cancelled at the tail), that `none` never cuts, and, with Jev off,

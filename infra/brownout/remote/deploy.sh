@@ -45,6 +45,12 @@ if [[ $ROLE == jev ]]; then
     echo; echo "probes on all Jev servers took $(echo "$(date +%s.%N) - $t0" | bc) s"
     JEV_ARGS="--jev-url $JEV_URLS --jev-concurrency $JEV_CONCURRENCY --jev-timeout $JEV_TIMEOUT"
   fi
+  KEY=$(api_key)
+  IFS=, read -ra UPSTREAMS <<< "$UPSTREAM"
+  for u in "${UPSTREAMS[@]}"; do
+    wait_http "$u/models" 120 "$KEY" || { echo "vLLM at $u did not answer within 20 min"; exit 1; }
+    echo "vLLM at $u ready"
+  done
   umask 077
   echo "LIFELINE_API_KEY=$(api_key)" > /etc/brownout-gateway.env
   umask 022
@@ -67,7 +73,6 @@ UNIT
     journalctl -u brownout-gateway --no-pager -n 60
     exit 1
   fi
-  KEY=$(api_key)
   curl -sf -H "Authorization: Bearer $KEY" http://127.0.0.1:9000/v1/models | head -c 300; echo
 else
   uv pip install -q --python $PY -e "$SRC/agent[test,math]"

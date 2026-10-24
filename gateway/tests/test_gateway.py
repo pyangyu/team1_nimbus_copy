@@ -10,6 +10,7 @@ from brownout_gateway.priority import heuristic
 from brownout_gateway import create_app
 from brownout_gateway.controller import Active, Controller
 from brownout_gateway.pressure import PressureMonitor
+from brownout_gateway.routing import Replica, Router
 from budget_classifier import BudgetClassifier, Buckets, JevPrior
 from conftest import KEY, body, make, parse, think_headers
 
@@ -399,6 +400,102 @@ def test_pressure_series_since(run):
     assert r.json()["samples"] == [[101.0, 0.5, 2.0, 4.0], [102.0, 1.0, 9.0, 3.0]]
     assert r.json()["columns"] == ["t", "p", "waiting", "running"] and bad.status_code == 400
     assert gw.monitor.stats()["p_hist_deciles"][0] == 1 and gw.monitor.stats()["p_hist_deciles"][9] == 1
+
+
+TWO = "http://vllm-a/v1,http://vllm-b/v1"
+
+
+def test_router_picks_least_loaded_and_breaks_ties_round_robin():
+    a, b, c = (Replica(u) for u in ("http://a/v1", "http://b/v1", "http://c/v1"))
+    r = Router([a, b, c])
+    assert [r.pick() for _ in range(3)] == [0, 1, 2]
+    for rep, (w, n) in zip((a, b, c), ((0, 5), (2, 1), (0, 9))):
+        rep.monitor.set(w, n)
+    assert r.pick() == 1 and r.pick() == 1
+    assert r.pick() == 0 and r.pick() == 1
+    b.monitor.set(9, 9)
+    assert r.pick() == 0 and a.routed == 3 and b.routed == 4 and c.routed == 1
+
+
+def test_router_keeps_continuations_on_their_replica():
+    r = Router([Replica("http://a/v1"), Replica("http://b/v1")])
+    assert r.route("w1:solve.0", True) == 0 and r.route("w2:solve.0", True) == 1
+    assert r.route("w1:solve.0", False) == 0 and r.route("w2:solve.0", False) == 1
+    assert r.route("w1:solve.1", True) == 0 and r.route(None, False) == 1
+    small = Router([Replica("http://a/v1")], max_sticky=2)
+    for k in ("x", "y", "z"):
+        small.route(k, True)
+    assert list(small.sticky) == ["y", "z"]
+
+
+def test_two_replicas_spread_new_calls_and_keep_think_answer_together(run):
+    gw, fake, c = make(upstream=TWO)
+    async def go():
+        for wf in ("w1", "w2"):
+            await c.post("/v1/completions", json=body("easy"), headers=think_headers(wf=wf))
+            await c.post("/v1/completions", json={**body("easy"), "max_tokens": 20},
+                         headers=think_headers(wf=wf) | {"X-Lifeline-Phase": "answer"})
+        return await c.get("/v1/stats")
+    st = run(go()).json()
+    hosts = [(r["headers"]["x-lifeline-workflow"], r["headers"]["x-lifeline-phase"], r["host"]) for r in fake.requests]
+    assert hosts == [("w1", "think", "vllm-a"), ("w1", "answer", "vllm-a"),
+                     ("w2", "think", "vllm-b"), ("w2", "answer", "vllm-b")]
+    assert [(x["url"], x["requests"], x["think"]) for x in st["replicas"]] == [
+        ("http://vllm-a/v1", 2, 1), ("http://vllm-b/v1", 2, 1)]
+
+
+def test_announced_continuation_stays_on_the_replica_and_cuts_by_its_pressure(run, tmp_path):
+    gw, fake, c = make(upstream=TWO, policy="uniform", notice="announced", log_path=tmp_path / "gw.jsonl")
+    busy, idle = gw.router.replicas[1].monitor, gw.router.replicas[0].monitor
+    idle.set(0, 1)
+    busy.set(0, 3)
+    def on_token(i):
+        if i == 50:
+            busy.set(4, 4)
+    fake.on_token = on_token
+    async def go():
+        t = asyncio.create_task(gw.controller.run())
+        r = await c.post("/v1/completions", json=body("hard"), headers=think_headers(wf="w1"))
+        t.cancel()
+        return r
+    idle.set(0, 9)
+    out = parse(run(go()))
+    assert out["info"]["announced"] and out["info"]["replica"] == 1
+    assert len(fake.requests) == 2 and {r["host"] for r in fake.requests} == {"vllm-b"}
+    row = json.loads((tmp_path / "gw.jsonl").read_text().splitlines()[-1])
+    assert row["replica"] == 1 and row["p_end"] == 1.0
+
+
+def test_pressure_on_another_replica_does_not_cut(run):
+    gw, fake, c = make(upstream=TWO, policy="uniform")
+    gw.router.replicas[0].monitor.set(0, 1)
+    gw.router.replicas[1].monitor.set(0, 5)
+    def on_token(i):
+        if i == 50:
+            gw.router.replicas[1].monitor.set(8, 4)
+    fake.on_token = on_token
+    async def go():
+        t = asyncio.create_task(gw.controller.run())
+        r = await c.post("/v1/completions", json=body("hard"), headers=think_headers())
+        t.cancel()
+        return r
+    out = parse(run(go()))
+    assert out["info"]["replica"] == 0 and not out["info"]["cut"] and out["usage"]["completion_tokens"] == 1000
+    assert gw.controller.cutting and not gw.controller.cutting_at(0)
+
+
+def test_pressure_endpoint_and_stats_per_replica(run):
+    gw, fake, c = make(upstream=TWO)
+    gw.router.replicas[0].monitor.set(1, 4)
+    gw.router.replicas[1].monitor.set(8, 4)
+    async def go():
+        return await c.get("/v1/pressure"), await c.get("/v1/stats")
+    pr, st = run(go())
+    reps = pr.json()["replicas"]
+    assert [x["url"] for x in reps] == ["http://vllm-a/v1", "http://vllm-b/v1"]
+    assert [x["samples"][0][1] for x in reps] == [0.25, 1.0] and pr.json()["samples"] == reps[0]["samples"]
+    p = st.json()["pressure"]
+    assert p["p"] == 1.0 and p["waiting"] == 9 and p["samples"] == 2 and sum(p["p_hist_deciles"]) == 2
 
 
 def test_upstream_error_is_returned(run):

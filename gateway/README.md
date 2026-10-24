@@ -102,8 +102,26 @@ LIFELINE_API_KEY=... brownout-gateway --upstream http://<vllm>:8000/v1 --host 0.
 Endpoints:
 - `/v1/completions` and `/v1/models`, OpenAI-compatible.
 - `GET /v1/stats`: gateway counters, controller, pressure histogram, priority, and classifier.
-- `GET /v1/pressure?since=<unix time>`: the pressure samples taken since then (one per monitor poll, the last 50,000 kept), as `[t, p, waiting, running]`.
+- `GET /v1/pressure?since=<unix time>`: the pressure samples taken since then (one per monitor poll, the last 50,000 kept), as `[t, p, waiting, running]`: `samples` for the first replica, `replicas: [{url, samples}]` for each.
 - `POST /admin/policy` with `{policy, notice, predictor, reject_waiting, admit_rate, admit_burst, reset}`; `reset: true` also clears the classifier (word model, Jev examples, stats). It refills the bucket and forgets which workflows were admitted, so a sweep can reuse workflow ids.
+
+## Several vLLM replicas
+
+`--upstream` takes a comma list of vLLM base URLs (`--metrics-url` then takes one URL per
+upstream, default each host's `/metrics`). Each replica has its own pressure monitor.
+- A new call (a think request that is not a budget-drop continuation, a call without a
+  thinking budget such as PLAN, or a request without headers) goes to the replica with the
+  lowest `waiting + running`, counting the requests sent to it since its last poll. Ties go
+  round-robin.
+- The rest of that call stays on the same replica: the answer phase after a think, a
+  client budget-drop continuation (keyed by workflow and step), and every announced-cut
+  continuation the gateway sends itself.
+- A request is cut by its own replica's pressure only. `cutting` in the controller stats is
+  true when any replica is under pressure.
+- `GET /v1/stats` reports `replicas: [{url, routed, requests, think, load, pressure}]`, and
+  `pressure` sums waiting, running, samples and the histogram over replicas (`p` is the
+  highest). With one upstream it is that replica's monitor, as before. Each row of
+  `gateway.jsonl` and the stream's `lifeline` event carry `replica`.
 
 `gateway.jsonl` has one row per think request, prompt included, so
 `budget-classifier replay` can run on real traffic.
@@ -127,5 +145,8 @@ Endpoints:
 - admin and auth
 - upstream errors
 - the real math-agent client through the gateway, including a cut and a 429
+- several replicas: least-loaded routing with round-robin ties, think and answer on the same
+  replica, announced continuations on the request's replica, cuts by that replica's pressure
+  only, per-replica pressure samples and stats
 
 The AWS end-to-end run is in [`../infra/brownout`](../infra/brownout/README.md).

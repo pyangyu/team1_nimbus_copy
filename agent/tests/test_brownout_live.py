@@ -52,7 +52,7 @@ WORKLOAD = os.environ.get("BROWNOUT_WORKLOAD", workload.DEFAULT_WORKLOAD)
 PROFILE = os.environ.get("BROWNOUT_PROFILE", workload.DEFAULT_PROFILE)
 SEED = int(os.environ.get("BROWNOUT_SEED", "0"))
 TAIL_S = float(os.environ.get("BROWNOUT_TAIL_S", "1200"))
-CAP_CONCURRENCY = int(os.environ.get("BROWNOUT_CAPACITY_CONCURRENCY", "32"))
+CAP_CONCURRENCY = os.environ.get("BROWNOUT_CAPACITY_CONCURRENCY")
 CAP_WARMUP_S = float(os.environ.get("BROWNOUT_CAPACITY_WARMUP_S", "180"))
 CAP_S = float(os.environ.get("BROWNOUT_CAPACITY_S", "600"))
 CAPACITY: dict = {}
@@ -60,7 +60,7 @@ REAL_COLUMNS = ("policy", "n", "accuracy", "deadline_met", "correct_and_on_time"
                 "accuracy_baseline", "accuracy_burst", "cancelled", "latency_p50_s", "latency_p95_s",
                 "thinking_tokens_mean", "think", "cut", "announced", "notices", "p_mean", "p_at_cap", "p_zero",
                 "queue_frac", "p_mean_baseline", "p_mean_burst", "word_model_window", "word_model_exact",
-                "word_model_within_one", "word_model_under", "jev_asked")
+                "word_model_within_one", "word_model_under", "jev_asked", "replica_think", "p_mean_replicas")
 REJECT_WAITING = float(os.environ.get("BROWNOUT_REJECT_WAITING", "2"))
 ADMIT_RATE = float(os.environ.get("BROWNOUT_ADMIT_RATE", "0.25"))
 ADMIT_BURST = float(os.environ.get("BROWNOUT_ADMIT_BURST", "8"))
@@ -210,10 +210,18 @@ def realistic_loadgen(out: Path, *args: str, timeout: float) -> dict:
     return json.loads((out / "summary.json").read_text())
 
 
-def pressure_since(t: float, out: Path) -> list:
-    samples = gw("GET", "/v1/pressure", params={"since": t})["samples"]
-    (out / "pressure.jsonl").write_text("".join(json.dumps(x) + "\n" for x in samples))
-    return samples
+def pressure_since(t: float, out: Path) -> list[list]:
+    r = gw("GET", "/v1/pressure", params={"since": t})
+    reps = [x["samples"] for x in r.get("replicas") or [{"samples": r["samples"]}]]
+    (out / "pressure.jsonl").write_text("".join(json.dumps([*x, k]) + "\n" for k, xs in enumerate(reps) for x in xs))
+    return reps
+
+
+def pressure_of(reps: list[list], phase_of=None) -> dict:
+    out = metrics.pressure_summary([x for xs in reps for x in xs], phase_of)
+    if len(reps) > 1:
+        out["replicas"] = [metrics.pressure_summary(xs, phase_of) for xs in reps]
+    return out
 
 
 def word_model(stats: dict) -> dict:
@@ -230,7 +238,8 @@ def write_realistic() -> None:
     cap = CAPACITY.get("capacity_wf_s")
     lines = [f"Workload `{WORKLOAD}`, profile `{PROFILE}` (rates x C), seed {SEED}.", "",
              f"Capacity C = {cap} workflows/s ({CAPACITY.get('source', 'not measured')}; "
-             f"{CAPACITY.get('capacity_think_tok_s')} thinking tokens/s, {CAPACITY.get('window_n')} workflows "
+             f"{CAPACITY.get('capacity_think_tok_s')} thinking tokens/s over {CAPACITY.get('replicas')} vLLM "
+             f"replica(s), {CAPACITY.get('window_n')} workflows "
              f"in the window, queue present in {CAPACITY.get('queue_frac')} of samples).", "",
              "| " + " | ".join(REAL_COLUMNS) + " |", "|" + "---|" * len(REAL_COLUMNS)]
     for r in RESULTS:
@@ -263,14 +272,16 @@ def test_realistic_capacity():
         return
     before = gw("GET", "/v1/stats")
     out = OUT / "capacity"
-    s = realistic_loadgen(out, "--closed", str(CAP_CONCURRENCY), "--warmup-s", str(CAP_WARMUP_S),
+    k = int(CAP_CONCURRENCY) if CAP_CONCURRENCY else 32 * len(before.get("replicas") or [1])
+    s = realistic_loadgen(out, "--closed", str(k), "--warmup-s", str(CAP_WARMUP_S),
                           "--duration-s", str(CAP_S), timeout=CAP_WARMUP_S + CAP_S + 900)
     after = gw("GET", "/v1/stats")
-    ps = metrics.pressure_summary(pressure_since(s["t0"] + CAP_WARMUP_S, out))
+    ps = pressure_of(pressure_since(s["t0"] + CAP_WARMUP_S, out))
     CAPACITY.update({"source": "measured", **{k: s.get(k) for k in (
         "capacity_wf_s", "capacity_think_tok_s", "concurrency", "warmup_s", "duration_s", "accuracy",
         "latency_p50_s", "latency_p95_s", "thinking_tokens_mean", "by_band")},
-        "window_n": s["n"], "queue_frac": ps.get("queue_frac"), "pressure": ps})
+        "window_n": s["n"], "queue_frac": ps.get("queue_frac"), "pressure": ps,
+        "replicas": len(after.get("replicas") or [1])})
     write_realistic()
     assert after["gateway"]["upstream_errors"] == before["gateway"]["upstream_errors"]
     assert CAPACITY["capacity_wf_s"] > 0, "no workflow finished inside the capacity window"
@@ -292,8 +303,7 @@ def test_realistic_policy(spec):
     s = realistic_loadgen(out, "--profile", PROFILE, "--capacity", str(cap), "--tail-s", str(TAIL_S),
                           timeout=workload.total_s(profile) + TAIL_S + 900)
     after = gw("GET", "/v1/stats")
-    samples = pressure_since(s["t0"], out)
-    ps = metrics.pressure_summary(samples, lambda t: workload.phase_at(profile, t - s["t0"]))
+    ps = pressure_of(pressure_since(s["t0"], out), lambda t: workload.phase_at(profile, t - s["t0"]))
     d = {k: after["gateway"][k] - before["gateway"][k] for k in COUNTERS}
     ph = s.get("by_phase", {})
     row = {"policy": spec, "workload": WORKLOAD, "capacity_wf_s": cap,
@@ -306,6 +316,9 @@ def test_realistic_policy(spec):
            **{k: ps.get(k) for k in ("p_mean", "p_at_cap", "p_zero", "queue_frac")},
            **{f"p_mean_{k}": v["p_mean"] for k, v in ps.get("by_phase", {}).items()},
            **word_model(after), "jev_asked": after["jev"]["asked"] - before["jev"]["asked"],
+           "replica_think": [a["think"] - b["think"] for a, b in zip(after.get("replicas", []),
+                                                                     before.get("replicas", []))],
+           "p_mean_replicas": [x["p_mean"] for x in ps.get("replicas", []) if "p_mean" in x],
            "by_band": s.get("by_band", {}), "by_phase": ph, "by_segment": s.get("by_segment", {}),
            "by_band_phase": s.get("by_band_phase", {}), "pressure": ps}
     RESULTS.append(row)

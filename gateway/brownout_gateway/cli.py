@@ -22,12 +22,16 @@ def build(args: argparse.Namespace) -> tuple[Gateway, str | None]:
     if args.state and Path(args.state).exists():
         clf.load(args.state)
     http = httpx.AsyncClient(timeout=httpx.Timeout(900.0, connect=10.0), limits=httpx.Limits(max_connections=1000))
-    metrics_url = args.metrics_url or args.upstream.rstrip("/").removesuffix("/v1") + "/metrics"
-    monitor = PressureMonitor(metrics_url, interval=args.poll, http=http)
-    controller = Controller(monitor, policy=args.policy, notice=args.notice, predictor=args.predictor,
+    upstreams = [u.strip().rstrip("/") for u in args.upstream.split(",") if u.strip()]
+    metrics_urls = ([u.strip() for u in args.metrics_url.split(",")] if args.metrics_url
+                    else [u.removesuffix("/v1") + "/metrics" for u in upstreams])
+    if len(metrics_urls) != len(upstreams):
+        raise SystemExit("--metrics-url needs one URL per --upstream")
+    monitors = [PressureMonitor(m, interval=args.poll, http=http) for m in metrics_urls]
+    controller = Controller(monitors[0], policy=args.policy, notice=args.notice, predictor=args.predictor,
                             min_left=args.min_left, max_frac=args.max_frac, active_at=args.active_at,
                             renotice_min=args.renotice_min, renotice_frac=args.renotice_frac)
-    gw = Gateway(args.upstream, clf, controller, monitor, upstream_key=key, client_key=key, log_path=args.log,
+    gw = Gateway(upstreams, clf, controller, monitors[0], monitors=monitors, upstream_key=key, client_key=key, log_path=args.log,
                  reject_waiting=args.reject_waiting, defer_timeout=args.defer_timeout,
                  admit_rate=args.admit_rate, admit_burst=args.admit_burst,
                  notice_text=args.notice_text, serial_timeout=args.serial_timeout, http=http)
@@ -36,8 +40,9 @@ def build(args: argparse.Namespace) -> tuple[Gateway, str | None]:
 
 def cli(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="brownout-gateway")
-    ap.add_argument("--upstream", required=True, help="vLLM base URL, e.g. http://10.0.0.5:8000/v1")
-    ap.add_argument("--metrics-url", help="default: the upstream host's /metrics")
+    ap.add_argument("--upstream", required=True, help="vLLM base URL, e.g. http://10.0.0.5:8000/v1; "
+                    "several comma-separated replicas: each new request goes to the least loaded")
+    ap.add_argument("--metrics-url", help="default: each upstream host's /metrics (comma list, one per upstream)")
     ap.add_argument("--key-env", default="LIFELINE_API_KEY", help="env var with the API key (clients and vLLM)")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=9000)

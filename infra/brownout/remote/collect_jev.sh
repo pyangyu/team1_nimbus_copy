@@ -6,8 +6,9 @@ KEY=$(api_key)
 curl -sf -H "Authorization: Bearer $KEY" http://127.0.0.1:9000/v1/stats > /tmp/gateway-stats.json || true
 journalctl -u brownout-gateway --no-pager -n 300 > /tmp/gateway-journal.log || true
 journalctl -u 'open-jev@*' --no-pager -n 300 > /tmp/open-jev-journal.log || true
+journalctl -u vllm --no-pager -n 300 > /tmp/jev-box-vllm-journal.log || true
 for port in $JEV_PORTS; do curl -sf "http://127.0.0.1:$port/health"; echo; done > /tmp/open-jev-health.txt || true
-for f in /tmp/gateway-stats.json /tmp/gateway-journal.log /tmp/open-jev-journal.log /tmp/open-jev-health.txt /var/lib/brownout/gateway.jsonl; do
+for f in /tmp/gateway-stats.json /tmp/gateway-journal.log /tmp/open-jev-journal.log /tmp/open-jev-health.txt /tmp/jev-box-vllm-journal.log /var/lib/brownout/gateway.jsonl; do
   [[ ! -f $f ]] || aws s3 cp --region "$REGION" --quiet "$f" "s3://$BUCKET/ci/$SHA/results/$TAG/jev/$(basename "$f")"
 done
 echo "collected gateway logs"

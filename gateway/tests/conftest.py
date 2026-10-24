@@ -25,7 +25,7 @@ class FakeVLLM:
         if req.url.path.endswith("/models"):
             return httpx.Response(200, json={"data": [{"id": "fake"}]})
         body = json.loads(req.content)
-        self.requests.append({"headers": dict(req.headers), "body": body})
+        self.requests.append({"headers": dict(req.headers), "body": body, "host": req.url.host})
         if req.headers.get("authorization") != f"Bearer {KEY}":
             return httpx.Response(401, json={"error": "Unauthorized"})
         if req.headers.get("x-lifeline-phase") == "answer":
@@ -59,13 +59,13 @@ class FakeVLLM:
         return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=gen())
 
 
-def make(lengths=None, policy="brownout", notice="silent", jev=None, predictor="jev", **kw):
+def make(lengths=None, policy="brownout", notice="silent", jev=None, predictor="jev", upstream="http://vllm/v1", **kw):
     fake = FakeVLLM(lengths or {"easy": 50, "hard": 2000})
     http = httpx.AsyncClient(transport=httpx.MockTransport(fake.handler))
     monitor = PressureMonitor()
     clf = BudgetClassifier(dim=1 << 12, jev=jev)
     ctl = Controller(monitor, policy=policy, notice=notice, predictor=predictor, interval=0.002)
-    gw = Gateway("http://vllm/v1", clf, ctl, monitor, upstream_key=KEY, client_key=KEY, http=http, **kw)
+    gw = Gateway(upstream, clf, ctl, monitor, upstream_key=KEY, client_key=KEY, http=http, **kw)
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(gw, background=False)),
                                base_url="http://gw", headers={"Authorization": f"Bearer {KEY}"})
     return gw, fake, client
