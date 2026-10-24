@@ -34,10 +34,11 @@ class Active:
 class Controller:
     def __init__(self, monitor: PressureMonitor, *, policy: str = "brownout", notice: str = "silent",
                  predictor: str = "jev", min_left: int = 64, max_frac: float = 0.9, active_at: float = 0.05,
-                 interval: float = 0.25):
+                 renotice_min: int = 64, renotice_frac: float = 0.1, interval: float = 0.25):
         self.monitor = monitor
         self.set_policy(policy, notice, predictor)
         self.min_left, self.max_frac, self.active_at, self.interval = min_left, max_frac, active_at, interval
+        self.renotice_min, self.renotice_frac = renotice_min, renotice_frac
         self.active: dict[str, Active] = {}
         self.cuts = 0
 
@@ -67,6 +68,9 @@ class Controller:
     def target(self, a: Active) -> int:
         frac = 1 - min(self.max_frac, self.monitor.p * self.weight(a))
         return max(int(self.base(a) * frac), a.used + self.min_left)
+
+    def renotice(self, left: int) -> int:
+        return max(self.renotice_min, int(self.renotice_frac * left))
 
     def start(self, a: Active) -> Active:
         if self.cutting:

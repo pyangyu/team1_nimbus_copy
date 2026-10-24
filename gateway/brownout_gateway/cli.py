@@ -25,7 +25,8 @@ def build(args: argparse.Namespace) -> tuple[Gateway, str | None]:
     metrics_url = args.metrics_url or args.upstream.rstrip("/").removesuffix("/v1") + "/metrics"
     monitor = PressureMonitor(metrics_url, interval=args.poll, http=http)
     controller = Controller(monitor, policy=args.policy, notice=args.notice, predictor=args.predictor,
-                            min_left=args.min_left, max_frac=args.max_frac, active_at=args.active_at)
+                            min_left=args.min_left, max_frac=args.max_frac, active_at=args.active_at,
+                            renotice_min=args.renotice_min, renotice_frac=args.renotice_frac)
     gw = Gateway(args.upstream, clf, controller, monitor, upstream_key=key, client_key=key, log_path=args.log,
                  reject_waiting=args.reject_waiting, defer_timeout=args.defer_timeout,
                  admit_rate=args.admit_rate, admit_burst=args.admit_burst,
@@ -54,6 +55,10 @@ def cli(argv: list[str] | None = None) -> None:
     ap.add_argument("--admit-burst", type=float, default=8, help="reject: bucket size")
     ap.add_argument("--min-left", type=int, default=64)
     ap.add_argument("--max-frac", type=float, default=0.9)
+    ap.add_argument("--renotice-min", type=int, default=64,
+                    help="announced: a new notice needs the limit to drop by at least this many tokens")
+    ap.add_argument("--renotice-frac", type=float, default=0.1,
+                    help="announced: or this fraction of the budget left at the last notice, if larger")
     ap.add_argument("--active-at", type=float, default=0.05)
     ap.add_argument("--poll", type=float, default=0.5)
     ap.add_argument("--edges")

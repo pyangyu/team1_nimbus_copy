@@ -151,6 +151,55 @@ def test_announced_cut_continues_with_notice(run):
     assert out["usage"]["completion_tokens"] <= 200 and gw.counts["announced"] == 1
 
 
+def drop_limits(gw, fake, at: dict[int, int]):
+    seen = [0]
+    def on_token(i):
+        if seen[0] in at:
+            for a in gw.controller.active.values():
+                a.limit = at[seen[0]]
+        seen[0] += 1
+    fake.on_token = on_token
+
+
+def run_announced(run, tmp_path, at):
+    gw, fake, c = make(policy="none", notice="announced", log_path=tmp_path / "gw.jsonl")
+    drop_limits(gw, fake, at)
+    out = parse(run(c.post("/v1/completions", json=body("hard"), headers=think_headers())))
+    row = json.loads((tmp_path / "gw.jsonl").read_text().splitlines()[-1])
+    return gw, fake, out, row
+
+
+def test_announced_renotices_on_each_large_drop(run, tmp_path):
+    gw, fake, out, row = run_announced(run, tmp_path, {100: 600, 200: 400})
+    assert [r["body"]["max_tokens"] for r in fake.requests] == [1000, 499, 199]
+    assert out["text"].count("<budget_cut left=") == 2
+    assert "<budget_cut left=499>" in out["text"] and "<budget_cut left=199>" in out["text"]
+    assert fake.requests[-1]["body"]["prompt"].endswith("<budget_cut left=199>\n")
+    assert out["finish"] == "length" and out["usage"]["completion_tokens"] == 400
+    assert out["info"]["announced"] and out["info"]["notices"] == 2 and not row["natural"]
+    assert row["announced"] and row["notices"] == 2 and not row["cut"]
+    assert gw.counts["announced"] == 1 and gw.counts["notices"] == 2 and gw.counts["cut"] == 0
+
+
+def test_announced_small_drop_hard_stops_without_notice(run, tmp_path):
+    gw, fake, out, row = run_announced(run, tmp_path, {100: 600, 200: 560})
+    assert len(fake.requests) == 2 and out["text"].count("<budget_cut left=") == 1
+    assert out["finish"] == "length" and out["usage"]["completion_tokens"] == 560
+    assert row["notices"] == 1 and row["cut"] and gw.counts["notices"] == 1 and gw.counts["cut"] == 1
+
+
+def test_announced_drop_past_used_hard_stops(run, tmp_path):
+    gw, fake, out, row = run_announced(run, tmp_path, {100: 600, 300: 250})
+    assert len(fake.requests) == 2 and out["text"].count("<budget_cut left=") == 1
+    assert out["finish"] == "length" and out["usage"]["completion_tokens"] == 301
+    assert row["notices"] == 1 and row["cut"] and gw.counts["cut"] == 1
+
+
+def test_renotice_threshold():
+    ctl = Controller(PressureMonitor(), renotice_min=64, renotice_frac=0.1)
+    assert ctl.renotice(100) == 64 and ctl.renotice(2000) == 200
+
+
 def test_no_cut_without_pressure(run):
     gw, fake, c = make(policy="brownout")
     async def go():

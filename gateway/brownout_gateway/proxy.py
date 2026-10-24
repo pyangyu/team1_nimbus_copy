@@ -56,7 +56,7 @@ class Gateway:
         self.admitted: OrderedDict[str, float] = OrderedDict()
         self.max_admitted = 100_000
         self.counts = {"requests": 0, "think": 0, "passthrough": 0, "rejected": 0, "deferred": 0,
-                       "deferred_s": 0.0, "cut": 0, "announced": 0, "upstream_errors": 0,
+                       "deferred_s": 0.0, "cut": 0, "announced": 0, "notices": 0, "upstream_errors": 0,
                        "serial_waits": 0, "serial_wait_s": 0.0, "oracle_hits": 0, "oracle_misses": 0}
 
     def _up_headers(self, h: dict[str, str]) -> dict[str, str]:
@@ -184,8 +184,8 @@ class Gateway:
     async def _stream(self, a: Active, up: dict, h: dict[str, str], r: httpx.Response, meta: dict):
         parts: list[str] = []
         done_before, seg, prompt_tokens = 0, 0, None
-        finish, cut, announced = None, False, False
-        cap = a.limit
+        finish, cut, notices = None, False, 0
+        cap, last_left = a.limit, 0
         try:
             while True:
                 action, left = None, 0
@@ -215,7 +215,8 @@ class Gateway:
                         yield sse({"object": "text_completion", "model": up.get("model"),
                                    "choices": [{"index": 0, "text": text, "finish_reason": None}]})
                     if a.limit < cap and finish is None:
-                        if self.controller.notice == "announced" and not announced and a.used < a.limit:
+                        if (self.controller.notice == "announced" and a.used < a.limit
+                                and (not notices or cap - a.limit >= self.controller.renotice(last_left))):
                             action, left = "announce", a.limit - a.used
                             break
                         if a.used >= a.limit:
@@ -228,13 +229,15 @@ class Gateway:
                     cut, finish = True, "length"
                     self.counts["cut"] += 1
                     break
-                announced = True
-                self.counts["announced"] += 1
+                notices += 1
+                self.counts["notices"] += 1
+                if notices == 1:
+                    self.counts["announced"] += 1
                 notice = self.notice_text.format(N=left)
                 parts.append(notice)
                 yield sse({"object": "text_completion", "model": up.get("model"),
                            "choices": [{"index": 0, "text": notice, "finish_reason": None}]})
-                done_before, seg, cap, finish = a.used, 0, a.limit, None
+                done_before, seg, cap, last_left, finish = a.used, 0, a.limit, left, None
                 r = await self._open({**up, "prompt": up["prompt"] + "".join(parts), "max_tokens": left}, h)
                 if r.status_code >= 400:
                     await r.aread()
@@ -242,11 +245,13 @@ class Gateway:
                     cut, finish = True, "length"
                     break
             finish = finish or "length"
+            announced = notices > 0
             info = {"tier": a.tier, "online_tier": meta["online_tier"], "jev_tier": a.jev_tier, "jev_at": a.jev_at,
                     "predictor": self.controller.predictor, "priority": a.priority,
                     "priority_source": a.priority_source,
                     "budget": meta["first_limit"], "limit": a.limit, "cut": cut or announced,
-                    "cut_from": a.cut_from, "announced": announced, "policy": self.controller.policy}
+                    "cut_from": a.cut_from, "announced": announced, "notices": notices,
+                    "policy": self.controller.policy}
             yield sse({"object": "text_completion", "choices": [{"index": 0, "text": "", "finish_reason": finish}]})
             yield sse({"object": "text_completion", "choices": [],
                        "usage": {"prompt_tokens": prompt_tokens or 0, "completion_tokens": a.used,
@@ -256,14 +261,15 @@ class Gateway:
         finally:
             await r.aclose()
             self.controller.finish(a)
-            natural = finish == "stop" and not cut and not announced
+            natural = finish == "stop" and not cut and not notices
             if natural:
                 self.oracle[meta["key"]] = a.used
             obs = self.clf.observe(a.rid, a.used, finished=natural, model=meta["model"])
             if self.log is not None:
                 row = {**{k: v for k, v in meta.items() if k not in ("t0", "key")}, "ts": meta["t0"],
                        "latency_s": round(time.time() - meta["t0"], 3), "used": a.used, "finish": finish,
-                       "natural": natural, "cut": cut, "announced": announced, "limit": a.limit,
+                       "natural": natural, "cut": cut, "announced": notices > 0, "notices": notices,
+                       "limit": a.limit,
                        "cut_from": a.cut_from, "priority": a.priority, "priority_source": a.priority_source,
                        "p_end": round(self.monitor.p, 3), "policy": self.controller.policy,
                        "notice": self.controller.notice, "observed": obs.get("label"),

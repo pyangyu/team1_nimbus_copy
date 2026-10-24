@@ -36,7 +36,7 @@ The think response carries these headers (sent before Jev answers):
 - `X-Lifeline-Budget`: the starting limit.
 
 The last stream event carries `lifeline: {tier, online_tier, jev_tier, jev_at, predictor,
-priority, priority_source, budget, limit, cut, cut_from, announced, policy}`: `tier` is the
+priority, priority_source, budget, limit, cut, cut_from, announced, notices, policy}`: `tier` is the
 bucket that set the budget (`pending` if Jev never answered), `online_tier` and `jev_tier`
 each predictor's bucket, and `jev_at` the thinking tokens decoded when Jev's answer landed
 (0 = still queued or prefilling at vLLM). The math agent stores it per phase in `calls.jsonl`.
@@ -59,7 +59,7 @@ each predictor's bucket, and `jev_at` the thinking tokens decoded when Jev's ans
   its bucket and priority are only recorded. Without a Jev URL, the word model is used.
 - `--notice` sets how a cut reaches the model:
   - `silent`: the request stops at the new limit with `finish_reason: length`, and the agent appends its early-stop line.
-  - `announced`: the gateway immediately continues the request with `<budget_cut left=N>` appended and `max_tokens = N`. The client sees one stream.
+  - `announced`: the gateway immediately continues the request with `<budget_cut left=N>` appended and `max_tokens = N`. The client sees one stream. Each later drop of at least `max(--renotice-min, --renotice-frac x N)` (default `max(64, 0.1 N)`, N from the last notice) sends a new notice with the new N; a smaller drop stops the request at the limit as in `silent`. `announced` is true after the first notice, `notices` counts them (per request in the log and the stream, in total in `/v1/stats`).
 
 ## Priority (cut protection)
 

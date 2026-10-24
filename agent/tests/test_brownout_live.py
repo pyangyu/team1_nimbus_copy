@@ -43,11 +43,11 @@ CASES = [(ds, spec) for ds, sw in SWEEPS.items() for spec in sw["specs"]]
 REJECT_WAITING = float(os.environ.get("BROWNOUT_REJECT_WAITING", "2"))
 ADMIT_RATE = float(os.environ.get("BROWNOUT_ADMIT_RATE", "0.25"))
 ADMIT_BURST = float(os.environ.get("BROWNOUT_ADMIT_BURST", "8"))
-COUNTERS = ("think", "rejected", "deferred", "cut", "announced", "upstream_errors", "serial_waits", "serial_wait_s",
+COUNTERS = ("think", "rejected", "deferred", "cut", "announced", "notices", "upstream_errors", "serial_waits", "serial_wait_s",
             "oracle_hits", "oracle_misses")
 COLUMNS = ("dataset", "policy", "n", "accuracy", "deadline_met", "correct_and_on_time", "admitted_correct_and_on_time",
            "rejected_workflows",
-           "latency_p50_s", "latency_p90_s", "thinking_tokens_mean", "think", "cut", "announced",
+           "latency_p50_s", "latency_p90_s", "thinking_tokens_mean", "think", "cut", "announced", "notices",
            "rejected", "pressured_samples", "jev_before_first_token", "jev_during_decode", "jev_tier_lowered",
            "jev_mean_wait_s", "jev_mean_call_s", "jev_failure_rate", "serial_wait_mean_s", "oracle_hit_rate", "paired_n", "online_exact", "jev_exact",
            "online_within_one", "jev_within_one", "online_under", "jev_under")
