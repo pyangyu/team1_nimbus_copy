@@ -319,6 +319,14 @@ def create_app(gw: Gateway, *, state_path: str | Path | None = None, background:
     async def stats(request: Request) -> Response:
         return JSONResponse(gw.stats())
 
+    async def pressure(request: Request) -> Response:
+        try:
+            since = float(request.query_params.get("since", 0))
+        except ValueError:
+            return JSONResponse({"error": "since must be a unix time"}, status_code=400)
+        return JSONResponse({"interval": gw.monitor.interval, "columns": ["t", "p", "waiting", "running"],
+                             "samples": gw.monitor.since(since)})
+
     async def health(request: Request) -> Response:
         return JSONResponse({"ok": True, "policy": gw.controller.policy})
 
@@ -344,6 +352,7 @@ def create_app(gw: Gateway, *, state_path: str | Path | None = None, background:
         Route("/v1/completions", gw.completions, methods=["POST"]),
         Route("/v1/models", gw.models, methods=["GET"]),
         Route("/v1/stats", stats, methods=["GET"]),
+        Route("/v1/pressure", pressure, methods=["GET"]),
         Route("/admin/policy", gw.admin_policy, methods=["POST"]),
         Route("/health", health, methods=["GET"]),
     ], lifespan=lifespan)

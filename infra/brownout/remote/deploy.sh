@@ -11,31 +11,40 @@ tar xzf /tmp/src.tgz -C $SRC
 PY=/opt/brownout/venv/bin/python
 if [[ $ROLE == jev ]]; then
   uv pip install -q --python $PY -e $SRC/classifier -e $SRC/gateway
-  for unit in $(systemctl list-units --all --plain --no-legend 'open-jev@*' | awk '{print $1}'); do
-    port=${unit#open-jev@}
-    port=${port%.service}
-    [[ " $JEV_PORTS " == *" $port "* ]] || systemctl disable --now "$unit" >/dev/null 2>&1 || true
-  done
-  JEV_URLS=""
-  for port in $JEV_PORTS; do
-    systemctl enable "open-jev@$port" >/dev/null 2>&1
-    systemctl restart "open-jev@$port"
-    JEV_URLS+="${JEV_URLS:+,}http://127.0.0.1:$port/v1/systemone"
-  done
-  for port in $JEV_PORTS; do
-    if ! wait_http "http://127.0.0.1:$port/health" 60; then
-      journalctl -u "open-jev@$port" --no-pager -n 60
-      echo "Open-Jev on :$port did not become healthy"
-      exit 1
-    fi
-  done
-  t0=$(date +%s.%N)
-  for port in $JEV_PORTS; do
-    curl -sf -H 'Content-Type: application/json' "http://127.0.0.1:$port/v1/systemone" -d '{"model":"open-jev","state":{"request":"Prove that n^3 - n is divisible by 6."},"questions":{"tier":{"type":"score","instructions":"How many thinking tokens will the model use?","criteria":["0-32","32-128","128-256","256-512","512-1K","1K-2K","2K-4K","4K-8K","8K-16K","16K+"]}}}' \
-      | head -c 200 &
-  done
-  wait
-  echo; echo "probes on all Jev servers took $(echo "$(date +%s.%N) - $t0" | bc) s"
+  JEV_ARGS=""
+  if [[ "${BROWNOUT_JEV:-1}" == 0 ]]; then
+    for unit in $(systemctl list-units --all --plain --no-legend 'open-jev@*' | awk '{print $1}'); do
+      systemctl disable --now "$unit" >/dev/null 2>&1 || true
+    done
+    echo "Jev off: no Open-Jev servers, gateway without --jev-url"
+  else
+    for unit in $(systemctl list-units --all --plain --no-legend 'open-jev@*' | awk '{print $1}'); do
+      port=${unit#open-jev@}
+      port=${port%.service}
+      [[ " $JEV_PORTS " == *" $port "* ]] || systemctl disable --now "$unit" >/dev/null 2>&1 || true
+    done
+    JEV_URLS=""
+    for port in $JEV_PORTS; do
+      systemctl enable "open-jev@$port" >/dev/null 2>&1
+      systemctl restart "open-jev@$port"
+      JEV_URLS+="${JEV_URLS:+,}http://127.0.0.1:$port/v1/systemone"
+    done
+    for port in $JEV_PORTS; do
+      if ! wait_http "http://127.0.0.1:$port/health" 60; then
+        journalctl -u "open-jev@$port" --no-pager -n 60
+        echo "Open-Jev on :$port did not become healthy"
+        exit 1
+      fi
+    done
+    t0=$(date +%s.%N)
+    for port in $JEV_PORTS; do
+      curl -sf -H 'Content-Type: application/json' "http://127.0.0.1:$port/v1/systemone" -d '{"model":"open-jev","state":{"request":"Prove that n^3 - n is divisible by 6."},"questions":{"tier":{"type":"score","instructions":"How many thinking tokens will the model use?","criteria":["0-32","32-128","128-256","256-512","512-1K","1K-2K","2K-4K","4K-8K","8K-16K","16K+"]}}}' \
+        | head -c 200 &
+    done
+    wait
+    echo; echo "probes on all Jev servers took $(echo "$(date +%s.%N) - $t0" | bc) s"
+    JEV_ARGS="--jev-url $JEV_URLS --jev-concurrency $JEV_CONCURRENCY --jev-timeout $JEV_TIMEOUT"
+  fi
   umask 077
   echo "LIFELINE_API_KEY=$(api_key)" > /etc/brownout-gateway.env
   umask 022
@@ -46,7 +55,7 @@ if [[ $ROLE == jev ]]; then
 After=network-online.target
 [Service]
 EnvironmentFile=/etc/brownout-gateway.env
-ExecStart=$PY -m brownout_gateway.cli --upstream $UPSTREAM --host 0.0.0.0 --port 9000 --jev-url $JEV_URLS --jev-concurrency $JEV_CONCURRENCY --jev-timeout $JEV_TIMEOUT --state /var/lib/brownout/classifier.npz --log /var/lib/brownout/gateway.jsonl
+ExecStart=$PY -m brownout_gateway.cli --upstream $UPSTREAM --host 0.0.0.0 --port 9000 $JEV_ARGS --state /var/lib/brownout/classifier.npz --log /var/lib/brownout/gateway.jsonl
 Restart=always
 [Install]
 WantedBy=multi-user.target

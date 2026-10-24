@@ -386,6 +386,21 @@ def test_admin_auth_and_stats(run):
     assert {"gateway", "controller", "pressure", "jev", "classifier"} <= st.json().keys()
 
 
+def test_pressure_series_since(run):
+    gw, fake, c = make()
+    now = iter([100.0, 101.0, 102.0])
+    gw.monitor.clock = lambda: next(now)
+    gw.monitor.set(0, 4)
+    gw.monitor.set(2, 4)
+    gw.monitor.set(9, 3)
+    async def go():
+        return await c.get("/v1/pressure", params={"since": 101}), await c.get("/v1/pressure", params={"since": "x"})
+    r, bad = run(go())
+    assert r.json()["samples"] == [[101.0, 0.5, 2.0, 4.0], [102.0, 1.0, 9.0, 3.0]]
+    assert r.json()["columns"] == ["t", "p", "waiting", "running"] and bad.status_code == 400
+    assert gw.monitor.stats()["p_hist_deciles"][0] == 1 and gw.monitor.stats()["p_hist_deciles"][9] == 1
+
+
 def test_upstream_error_is_returned(run):
     gw, fake, c = make()
     gw.upstream_key = "wrong"

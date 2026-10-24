@@ -10,7 +10,7 @@ LIFELINE_API_KEY=$(api_key)
 export LIFELINE_API_KEY
 set +e
 TESTS=(tests/test_live.py tests/test_brownout_live.py)
-[[ -z "${BROWNOUT_SKIP_AGENT_LIVE:-}" ]] || TESTS=(tests/test_brownout_live.py)
+[[ -z "${BROWNOUT_SKIP_AGENT_LIVE:-}" && "${BROWNOUT_SUITE:-default}" != realistic ]] || TESTS=(tests/test_brownout_live.py)
 /opt/brownout/venv/bin/python -m pytest -q -rs "${TESTS[@]}" \
   --junitxml="$OUT/junit.xml" > "$OUT/pytest.log" 2>&1
 rc=$?

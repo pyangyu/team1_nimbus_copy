@@ -102,6 +102,7 @@ LIFELINE_API_KEY=... brownout-gateway --upstream http://<vllm>:8000/v1 --host 0.
 Endpoints:
 - `/v1/completions` and `/v1/models`, OpenAI-compatible.
 - `GET /v1/stats`: gateway counters, controller, pressure histogram, priority, and classifier.
+- `GET /v1/pressure?since=<unix time>`: the pressure samples taken since then (one per monitor poll, the last 50,000 kept), as `[t, p, waiting, running]`.
 - `POST /admin/policy` with `{policy, notice, predictor, reject_waiting, admit_rate, admit_burst, reset}`; `reset: true` also clears the classifier (word model, Jev examples, stats). It refills the bucket and forgets which workflows were admitted, so a sweep can reuse workflow ids.
 
 `gateway.jsonl` has one row per think request, prompt included, so

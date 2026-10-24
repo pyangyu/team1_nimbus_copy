@@ -125,9 +125,10 @@ on the same prefix (cheap with prefix caching).
 
 ## Tests
 
-`pytest -q` runs three layers, all without a GPU:
+`pytest -q` runs these, all without a GPU:
 - `test_grading.py`: answer extraction and matching
 - `test_workflow.py`: the state machine and budget levers, in process, against a fake transport
+- `test_workload.py`: workload spec parsing, per-problem budgets, rate-profile arrivals (same seed, same arrivals; counts per segment), phase labels, per-phase and pressure summaries, and the profile and closed-loop loadgen modes against the stub
 - `test_agent_e2e.py`: the real CLIs (`math_agent.run`, `math_agent.loadgen`), started as subprocesses and configured through the `LIFELINE_*` environment variables, talking over HTTP to a local server that speaks vLLM's API, streaming and API-key check (`tests/vllm_stub.py`). They check that each step feeds the next (the plan reaches SOLVE, SOLVE's answer reaches VERIFY, rejected answers reach the retry), that the thinking budget grows and is capped, the budget drop and final-answer mode, deadlines, a bad API key, and that the load generator runs workflows concurrently
 
 `test_live.py` runs one GSM8K workflow against a real server. It is skipped unless
@@ -164,7 +165,22 @@ Each run writes:
 
 Load generator: open-loop Poisson arrivals at `--rate` workflows/s. Each workflow's
 deadline is `arrival + slack * (that problem's solo latency)`, with slack drawn from
-`--slack` (default `1.5,3,6`).
+`--slack` (default `1.5,3,6`). Give exactly one of `--rate`, `--profile` or `--closed`:
+
+| Flag | What it does |
+|---|---|
+| `--rate R --n N` | N workflows, Poisson at R workflows/s |
+| `--profile 180:0.7,120:1.5,... --capacity C` | Segments of `duration_s:rate`, the rate in units of C; Poisson within each segment. Arrival times, problems and slacks are fixed by `--seed`. Workflows record `segment`, `phase` (`burst` when the rate is above 1, else `baseline`) and `offset_s`; the summary has `by_phase`, `by_segment`, `by_band` and `by_band_phase` |
+| `--tail-s S` | Profile mode: cancel workflows still running S seconds after the profile ends. They count as wrong and late (`cancelled` in the summary) |
+| `--closed K --warmup-s W --duration-s D` | Capacity: K workflows stay in flight; completions between W and W + D give `capacity_wf_s` and `capacity_think_tok_s` |
+| `--workload SPEC` | `dataset[:levels][=weight],...`, e.g. `math500:1-5` or `gsm8k=0.5,math500:4-5=0.5`. Replaces `--dataset` / `--levels` |
+| `--level-budgets` | Budget per problem instead of `--budget` / `--max-budget`: MATH levels 1-2 2048 (max 4096), 3 4096 (max 6144), 4-5 and AIME 6144 (max 6144), GSM8K 1024 (max 2048). The solo latency for deadlines is 150 s, 300 s, 450 s and 90 s for those bands |
+
+```bash
+python -m math_agent.loadgen --workload math500:1-5 --level-budgets --closed 32
+python -m math_agent.loadgen --workload math500:1-5 --level-budgets --capacity 0.05 \
+    --profile 180:0.7,120:1.5,300:0.7 --tail-s 600
+```
 
 ## Layout
 
@@ -176,8 +192,9 @@ math_agent/
   prompts.py
   workflow.py    the state machine above
   run.py         sequential runs (trace / calibration)
-  loadgen.py     open-loop load with deadlines
+  loadgen.py     load with deadlines: fixed rate, rate profile, or closed loop for capacity
+  workload.py    workload specs, per-problem budgets, rate profiles
   metrics.py
-tests/           grading; workflow and budget levers; end-to-end CLI runs against a local vLLM stub
+tests/           grading; workflow and budget levers; workloads and profiles; end-to-end CLI runs against a local vLLM stub
 archive/finqa/   the earlier FinQA agent and its 2026-10-16 results (reference only)
 ```

@@ -83,6 +83,71 @@ benefits from the runs before it. Accuracy and deadline numbers are reported in
   rates for each in `results.md`)
 - `jev-serial` waited for Jev on every think request, and Jev answered before the first token
 
+## Realistic suite (MATH-500, rate profile)
+
+`BROWNOUT_SUITE=realistic` replaces the fixed-rate sweeps above with a suite where the one
+vLLM GPU stands for one replica of a fleet: below capacity most of the time, short bursts
+above it, recovery after. It cuts thinking with the word-model predictor (`online`) only, and
+Jev is not used: `e2e.sh` sets `BROWNOUT_JEV=0`, which skips `setup_jev.sh`, stops the Open-Jev
+servers and starts the gateway without `--jev-url`, so no request is sent to Jev and priority
+comes from the header heuristic. It runs only `agent/tests/test_brownout_live.py` (not `test_live.py`):
+
+1. Capacity: policy `none`, closed loop. `BROWNOUT_CAPACITY_CONCURRENCY` workflows stay in flight,
+   so vLLM always has a queue. Workflows finishing between `BROWNOUT_CAPACITY_WARMUP_S` and
+   warmup + `BROWNOUT_CAPACITY_S` give C in workflows/s (and thinking tokens/s). Workflows still
+   running at the end are cancelled. `BROWNOUT_CAPACITY` skips this and uses the given C.
+2. Each policy in `BROWNOUT_POLICIES` runs the same rate profile: segments of
+   `duration_s:rate`, the rate a multiple of C, Poisson within each segment. Arrival times,
+   problems and deadline slacks come from `BROWNOUT_SEED`, so every policy gets the same
+   sequence. After the profile ends, workflows still running after `BROWNOUT_TAIL_S` are
+   cancelled and counted as wrong and late. The classifier is reset before each run, and each
+   run waits until vLLM has no running or waiting requests.
+
+The client thinking budget is set per problem (`loadgen --level-budgets`): MATH levels 1-2 ask
+for 2048 (up to 4096 on a retry), level 3 for 4096 (up to 6144), levels 4-5 for 6144; GSM8K
+1024 (up to 2048). The solo latency used for deadlines is 150 s, 300 s and 450 s for those
+MATH bands and 90 s for GSM8K.
+
+| Variable | Default |
+|---|---|
+| `BROWNOUT_SUITE` | `default` (the sweeps above); `realistic` runs this suite |
+| `BROWNOUT_WORKLOAD` | `math500:1-5`. Format `dataset[:levels][=weight],...`, e.g. `math500:4-5` or `gsm8k=0.5,math500:4-5=0.5` |
+| `BROWNOUT_PROFILE` | `180:0.7,120:1.2,180:0.7,180:1.5,240:0.7,120:2.0,180:0.7,240:1.2,300:0.7` (29 min; rate > 1 is a burst) |
+| `BROWNOUT_POLICIES` | `none,uniform,brownout:silent:online,brownout:announced:online` |
+| `BROWNOUT_JEV` | `0` in this suite, `1` otherwise (`1` deploys Open-Jev and passes `--jev-url` to the gateway) |
+| `BROWNOUT_CAPACITY` | unset (measure C) |
+| `BROWNOUT_CAPACITY_CONCURRENCY` | `32` workflows in flight |
+| `BROWNOUT_CAPACITY_WARMUP_S`, `BROWNOUT_CAPACITY_S` | `180`, `600` |
+| `BROWNOUT_TAIL_S` | `1200` |
+| `BROWNOUT_SEED` | `0` |
+| `BROWNOUT_AGENT_TIMEOUT` | computed by `e2e.sh`: capacity + policies x (profile + tail + 1800 s) + 1800 s, 23340 s with the defaults |
+
+`e2e.sh` forwards these variables to the agent box. Run it from a shell with admin credentials:
+
+```
+AWS_PROFILE=rlwalkeradmin BROWNOUT_SUITE=realistic BROWNOUT_STOP=1 infra/brownout/e2e.sh <commit>
+```
+
+With the defaults it takes about 3 hours: 15 min setup, 15 min capacity, and 30-40 min per
+policy. That is longer than the CI job (230 min) and the CI role session (4 h), so run it
+locally.
+
+Results (`brownout-results/`):
+- `results.md`: C, then one row per policy: accuracy, deadline met, correct and on time
+  (goodput) overall and for arrivals in baseline and burst segments, latency p50/p95,
+  thinking tokens, cuts and notices, pressure (mean, fraction at the cap, fraction at 0,
+  fraction of samples with a vLLM queue, mean in baseline and burst). Then goodput by MATH level and a pressure
+  histogram per policy. Instead of the Jev columns, it reports the word model's accuracy over
+  its last 200 uncensored labels of the run (`word_model_exact`, `_within_one`, `_under`) and
+  `jev_asked` (0 when Jev is off).
+- `results.json`: the same plus breakdowns by segment, by level and by level x phase.
+- `capacity/` and `realistic-<policy>/`: the loadgen output and `pressure.jsonl`, the
+  gateway's samples of `[t, p, waiting, running]` during the run (`GET /v1/pressure?since=<unix time>`).
+
+The test asserts only that there were no upstream or client errors, that the classifier saw
+every think request (less any cancelled at the tail), that `none` never cuts, and, with Jev off,
+that Jev was never asked.
+
 CI runs the `brownout-e2e` job after the `aws` job, only in the full suite
 (`gh workflow run CI -f suite=full`); pushes to main run the smoke suite only. It uses the same OIDC role and stops only the boxes it started.
 A run costs roughly $5: two A10Gs for about two and a half hours. The CI role's session lasts 4 hours (`setup_iam.sh`).
