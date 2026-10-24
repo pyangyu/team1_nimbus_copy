@@ -136,3 +136,13 @@ What DEER does
 5. DEER as a baseline.
 - Add training-free DEER early exit to the sweep next to none / reject /
   defer / uniform; reviewers will expect it.
+
+6. Difficulty-aware cuts in the controller. OPEN.
+- The paper's F3 finds that cutting hard problems costs far more accuracy
+  (MATH-500 levels 4-5: 3.5 points for halving thinking; AIME: 10.3 points at
+  0.75L), and Section IV says the tier "can protect hard requests", but Eq. 2
+  cuts every request by the same fraction p of its tier. Nothing protects them.
+- Make the cut fraction depend on the predicted tier (e.g. p_i = p * w(tier),
+  with w < 1 for high tiers), so hard requests absorb less of the cut.
+- Test as H2: tier-aware vs uniform cut at equal tokens saved. Once it's in,
+  the difficulty sentence can go back into the abstract.
