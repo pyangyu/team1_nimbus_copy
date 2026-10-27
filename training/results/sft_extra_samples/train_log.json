@@ -1,0 +1,85 @@
+{
+  "args": {
+    "model": "Qwen/Qwen3-4B",
+    "data": "$WORK/sft_extra/sft.jsonl",
+    "out": "$WORK/lora_sft_extra",
+    "epochs": "2",
+    "lr": "0.0001",
+    "rank": "16",
+    "alpha": "32",
+    "dropout": "0.05",
+    "accum": "16",
+    "max_seq": "10240",
+    "holdout": "0.03",
+    "save_every": "50",
+    "limit": "None",
+    "resume": "True",
+    "merge": "True",
+    "seed": "0",
+    "cpu": "False"
+  },
+  "train": 894,
+  "held_out": 27,
+  "log": [
+    {
+      "step": 0,
+      "held_out_loss": 0.2843
+    },
+    {
+      "step": 10,
+      "train_loss": 0.212
+    },
+    {
+      "step": 20,
+      "train_loss": 0.1685
+    },
+    {
+      "step": 30,
+      "train_loss": 0.1757
+    },
+    {
+      "step": 40,
+      "train_loss": 0.1659
+    },
+    {
+      "step": 50,
+      "train_loss": 0.1605
+    },
+    {
+      "step": 56,
+      "held_out_loss": 0.1667
+    },
+    {
+      "step": 60,
+      "train_loss": 0.1581
+    },
+    {
+      "step": 70,
+      "train_loss": 0.1475
+    },
+    {
+      "step": 80,
+      "train_loss": 0.142
+    },
+    {
+      "step": 90,
+      "train_loss": 0.1475
+    },
+    {
+      "step": 100,
+      "train_loss": 0.1474
+    },
+    {
+      "step": 110,
+      "train_loss": 0.1441
+    },
+    {
+      "step": 112,
+      "train_loss": 0.1489
+    },
+    {
+      "step": 112,
+      "held_out_loss": 0.1646
+    }
+  ]
+}

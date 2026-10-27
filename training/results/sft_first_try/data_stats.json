@@ -1,0 +1,27 @@
+{
+  "usable_traces": 1743,
+  "cut_examples": 3486,
+  "examples_with_a_target": 1655,
+  "uncut_examples": 414,
+  "total": 2069,
+  "picked_from": {
+    "nudged": 1517,
+    "plain": 138
+  },
+  "candidates": {
+    "nudged: PASS": 2633,
+    "nudged: did not close in W": 2029,
+    "nudged: stopped too early": 1739,
+    "nudged: wrong answer": 571,
+    "plain: PASS": 479,
+    "plain: did not close in W": 9915,
+    "plain: stopped too early": 41,
+    "plain: wrong answer": 23
+  },
+  "answer_seen_share": 0.764,
+  "W_median": 617,
+  "budget_use_median": 0.01,
+  "target_tokens_median": 15,
+  "seq_tokens_median": 2269,
+  "notice": "\n\nI only have about {W} tokens of thinking left, so I must finish my reasoning quickly and move to the final answer.\n"
+}

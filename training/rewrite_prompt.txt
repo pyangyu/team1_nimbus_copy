@@ -1,0 +1,23 @@
+You're editing a math reasoning trace so it fits a smaller budget.
+
+A model was solving the problem below. Partway through, it got this note: "[[NOTICE]]"
+
+Rewrite only the REST of its reasoning in at most [[WORDS]] words. This is a hard limit, shorter is fine. Math notation is long, so keep equations short. No lists.
+
+Rules:
+- Keep the steps that actually move toward the answer. Cut re-checks, second verifications, and approaches that went nowhere.
+- Don't add steps or shortcuts that aren't in the original. Don't state the answer before the reasoning gets to it.
+- If the reasoning so far already found the answer, just wrap up in 1-3 sentences.
+- Keep the same voice: first person, plain, like thinking out loud. Start right where the reasoning so far stops (it may stop mid-sentence).
+- End with one sentence that gives the final answer. No \boxed, no </think>, no headings or bullet points.
+
+Output only the rewritten text.
+
+Problem:
+[[PROBLEM]]
+
+Reasoning so far (don't repeat it):
+...[[PREFIX]]
+
+Rest of the original reasoning (rewrite this):
+[[REST]]
