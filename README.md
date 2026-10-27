@@ -43,7 +43,7 @@ exam night.
 | Math agent: multi-step workflows with deadlines; client-side budget drop and notice for experiments | first version | [`agent/`](agent/) (FinQA version in [`agent/archive/finqa/`](agent/archive/finqa/)) |
 | vLLM on EC2 (Qwen3-8B, one A10G) | scripts ready, CI runs on it | [`infra/vllm-ec2/`](infra/vllm-ec2/) |
 | Brownout on AWS: agent box -> Jev GPU (Open-Jev-2B + gateway) -> vLLM GPU, policy sweep in CI | first version | [`infra/brownout/`](infra/brownout/) |
-| Budget-drop baselines and SFT/RL training (Qwen3-4B + LoRA) | first version (Matthew) | [`training/`](training/) |
+| Budget-drop baselines and SFT/RL training (Qwen3-4B + LoRA) | first version | [`training/`](training/) |
 | Budget classifier (online, ten buckets, Jev predicts on every request, online word model kept as the comparison) | first version | [`classifier/`](classifier/) |
 | Open-Jev serving under bursts: several Open-Jev servers on the Jev GPU, each micro-batching concurrent calls | first version | [`jevserve/`](jevserve/) |
 | Gateway: pressure monitor, budget controller (in-flight cuts, silent or announced), cut-protection priority, Jev beside prefill with a queue for busy periods, baselines (none, reject, defer, uniform) | first version, in front of vLLM | [`gateway/`](gateway/) |
