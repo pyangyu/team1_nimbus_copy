@@ -58,7 +58,7 @@ The policy sweep is controlled by environment variables on the agent box. They a
 
 | Variable | Default |
 |---|---|
-| `BROWNOUT_POLICIES` | `none,reject,uniform,brownout:silent:jev,brownout:announced:jev,brownout:announced:jev-serial,brownout:announced:online,brownout:announced:oracle,brownout:announced:jev-learn` (`policy:notice:predictor`: `jev` = untrained Jev beside the LLM, `jev-serial` = untrained Jev before the LLM, `online` = the word model, `oracle` = the thinking length the same prompt used in an earlier uncut run (an upper bound; run `none` first), `jev-learn` = trained Jev, skipped until its learner is deployed) |
+| `BROWNOUT_POLICIES` | `none,reject,uniform,brownout:silent:jev,brownout:announced:jev,brownout:announced:jev-serial,brownout:announced:online,brownout:announced:oracle,brownout:announced:jev-learn` (`policy:notice:predictor[:cut]`, cut = `proportional` or `ranked`; `skip` runs no sweep on this dataset: `jev` = untrained Jev beside the LLM, `jev-serial` = untrained Jev before the LLM, `online` = the word model, `oracle` = the thinking length the same prompt used in an earlier uncut run (an upper bound; run `none` first), `jev-learn` = trained Jev, skipped until its learner is deployed) |
 | `BROWNOUT_N` | `64` |
 | `BROWNOUT_RATE` | `4.0` workflows/s (24 at 1/s never queued on one A10G) |
 | `BROWNOUT_DATASET` | `gsm8k` (budget 1024, up to 2048) |
@@ -68,6 +68,8 @@ The policy sweep is controlled by environment variables on the agent box. They a
 | `BROWNOUT_REJECT_WAITING` | `2` (`defer` only) |
 | `BROWNOUT_ADMIT_RATE` | `0.25` new workflows/s (`reject`) |
 | `BROWNOUT_ADMIT_BURST` | `8` (`reject`) |
+| `BROWNOUT_GATEWAY_ARGS` | extra gateway flags, e.g. `--labels needed` (needed-budget labels by probing; see `../../gateway/README.md`) |
+| `BROWNOUT_SKIP_AGENT_LIVE` | set to skip `test_live.py` and run the sweep only |
 
 Each run starts from a reset classifier (word model, Jev examples, stats), so no predictor
 benefits from the runs before it. Accuracy and deadline numbers are reported in
@@ -82,6 +84,11 @@ benefits from the runs before it. Accuracy and deadline numbers are reported in
   are scored on the same requests (`paired_n`, then exact, within-one and under-prediction
   rates for each in `results.md`)
 - `jev-serial` waited for Jev on every think request, and Jev answered before the first token
+- with `--labels needed`, the `none` run produced probe labels with no probe errors, and ranked
+  runs that cut did so through the ranking (`ranked_cuts_with_probs` + `ranked_cuts_flat`)
+
+The sweep waits for the gateway's background probes to land after each run, so `observed`
+still equals the number of think requests.
 
 CI runs the `brownout-e2e` job after the `aws` job, only in the full suite
 (`gh workflow run CI -f suite=full`); pushes to main run the smoke suite only. It uses the same OIDC role and stops only the boxes it started.

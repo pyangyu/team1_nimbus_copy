@@ -43,6 +43,15 @@ buckets are allowed, because a Jev `score` question takes at most 10 levels.
 3. **Pick.** The bucket is the `quantile` point of the distribution (default 0.5, the
    median). Raise it to under-cut less often.
 
+## What the label means
+
+`JevPrior(label=...)` picks the wording Jev sees:
+- `length`: the thinking tokens the model used (the objective, the `thinking_tokens_used` field in
+  the examples, and the question all say so).
+- `needed`: the smallest budget at which the answer stopped changing. The gateway produces these
+  labels by probing (`brownout-gateway --labels needed`); the classifier itself is unchanged, it
+  just learns whatever it is told.
+
 ## How it learns
 
 | Request ended | Label | Update |

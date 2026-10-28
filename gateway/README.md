@@ -60,6 +60,38 @@ each predictor's bucket, and `jev_at` the thinking tokens decoded when Jev's ans
 - `--notice` sets how a cut reaches the model:
   - `silent`: the request stops at the new limit with `finish_reason: length`, and the agent appends its early-stop line.
   - `announced`: the gateway immediately continues the request with `<budget_cut left=N>` appended and `max_tokens = N`. The client sees one stream.
+- `--cut` sets how `brownout` spreads a cut across the running requests:
+  - `proportional` (default): every request's limit becomes `base x (1 - p x w)`.
+  - `ranked`: the same total number of tokens is taken away (`sum(requested x p x w)`), but from the
+    requests where it is expected to cost least. Each request carries its predictor's distribution
+    over the thinking budget it needs (Jev's probabilities, the word model's, or a one-hot from the
+    oracle; a flat prior until Jev answers). Removing part of bucket k costs `p_k x` the fraction of
+    the bucket removed, divided by the priority weight. The controller walks the cheapest slices
+    first, never below `used + 64`. Mass in buckets the request has already passed is dropped,
+    and mass past what the request asked for folds into its top bucket, so a request that needs
+    more than its budget still loses from every token taken. `uniform` is the proportional
+    rule with no predictor, so `ranked` against `uniform` isolates what the prediction buys.
+
+## Labels (`--labels`)
+
+What a finished request teaches the classifier, Jev's example memory and the oracle:
+- `length` (default): the thinking tokens it used (exact when it closed `</think>` itself,
+  "at least" when it hit a budget).
+- `needed`: the smallest budget at which its answer was already the same. When a request ends
+  on its own terms (closes its thinking, or hits the client's budget, with no limit from the
+  controller), the gateway replays its own thinking cut at the bucket edges below its length
+  (`--probe-edges`, default 3, walking down from the top), closes the thinking there with the
+  agent's early-stop line, and asks for the final answer only (`The final answer is oxed{`,
+  48 tokens). The label is the lowest edge whose answer still matches the answer at the full
+  thinking; probing stops at the first mismatch. Each probe is one short vLLM call on a
+  prefix-cached prompt, `--probe-concurrency` (default 2) at a time, in the background. A
+  request cut by the controller is never probed; it stays a censored label as before. The
+  label is a lower bound on survival: a real announced cut lets the model wrap up, a probe
+  does not.
+
+`GET /v1/stats` reports the probes under `probe` (labels, probe calls, how often the label
+landed below the length, agreement per edge, queue) and the ranked cuts under
+`controller.ranked`.
 
 ## Priority (cut protection)
 
@@ -102,7 +134,7 @@ LIFELINE_API_KEY=... brownout-gateway --upstream http://<vllm>:8000/v1 --host 0.
 Endpoints:
 - `/v1/completions` and `/v1/models`, OpenAI-compatible.
 - `GET /v1/stats`: gateway counters, controller, pressure histogram, priority, and classifier.
-- `POST /admin/policy` with `{policy, notice, predictor, reject_waiting, admit_rate, admit_burst, reset}`; `reset: true` also clears the classifier (word model, Jev examples, stats). It refills the bucket and forgets which workflows were admitted, so a sweep can reuse workflow ids.
+- `POST /admin/policy` with `{policy, notice, predictor, cut, reject_waiting, admit_rate, admit_burst, reset}`; `reset: true` also clears the classifier (word model, Jev examples, stats). It refills the bucket and forgets which workflows were admitted, so a sweep can reuse workflow ids.
 
 `gateway.jsonl` has one row per think request, prompt included, so
 `budget-classifier replay` can run on real traffic.
@@ -126,5 +158,9 @@ Endpoints:
 - admin and auth
 - upstream errors
 - the real math-agent client through the gateway, including a cut and a 429
+- ranked cuts: the same total as proportional, taken from the request whose need is met first;
+  the floor; flat priors; folding of mass past used and past requested (`test_ranked.py`)
+- needed labels: probes at the edges below the length, censored when no edge matches, no probes
+  for controller-cut requests, and the oracle feeding ranked cuts
 
 The AWS end-to-end run is in [`../infra/brownout`](../infra/brownout/README.md).
