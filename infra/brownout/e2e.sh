@@ -24,8 +24,10 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-git -C "$ROOT" archive --format=tar.gz -o "/tmp/brownout-$SHA.tgz" "$SHA"
-$AWS s3 cp --quiet "/tmp/brownout-$SHA.tgz" "s3://$BUCKET/ci/$SHA/src.tgz"
+# a path git.exe and aws.exe can open on Windows too (MSYS_NO_PATHCONV is set, so /tmp stays literal)
+TMPD=$( (command -v cygpath >/dev/null && cygpath -m /tmp) || echo /tmp)
+git -C "$ROOT" archive --format=tar.gz -o "$TMPD/brownout-$SHA.tgz" "$SHA"
+$AWS s3 cp --quiet "$TMPD/brownout-$SHA.tgz" "s3://$BUCKET/ci/$SHA/src.tgz"
 
 UP=$(./up.sh)
 eval "$UP"
