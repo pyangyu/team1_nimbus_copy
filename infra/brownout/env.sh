@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
-export AWS_PAGER="" MSYS_NO_PATHCONV=1
+export AWS_PAGER="" MSYS_NO_PATHCONV=1 PYTHONIOENCODING=utf-8 PYTHONUTF8=1  # the CLI prints SSM output; on Windows it would otherwise die on non-Latin text
 AWS_REGION=${AWS_REGION:-us-east-1}
 AWS="aws --region $AWS_REGION"
 ACCOUNT=826671498662
