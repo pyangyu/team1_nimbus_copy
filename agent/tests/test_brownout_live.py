@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import httpx
@@ -30,11 +31,17 @@ HARD_SPECS = os.environ.get("BROWNOUT_HARD_POLICIES", ",".join([
     "brownout:announced:online",
     "brownout:announced:oracle",
 ])).split(",")
+# a spec is policy[:notice[:predictor[:cut]]]; cut = proportional (default) or ranked.
+# BROWNOUT_POLICIES=skip runs no sweep on the first dataset.
+SPECS = [s for s in SPECS if s and s != "skip"]
+HARD_SPECS = [s for s in HARD_SPECS if s and s != "skip"]
 N = int(os.environ.get("BROWNOUT_N", "64"))
 RATE = float(os.environ.get("BROWNOUT_RATE", "4.0"))
 DATASET = os.environ.get("BROWNOUT_DATASET", "gsm8k")
 HARD_DATASET = os.environ.get("BROWNOUT_HARD_DATASET", "math500")
-SWEEPS = {DATASET: {"specs": SPECS, "n": N, "rate": RATE, "budget": 1024, "max_budget": 2048, "solo_s": 90}}
+SWEEPS = {}
+if SPECS:
+    SWEEPS[DATASET] = {"specs": SPECS, "n": N, "rate": RATE, "budget": 1024, "max_budget": 2048, "solo_s": 90}
 if HARD_DATASET:
     SWEEPS[HARD_DATASET] = {"specs": HARD_SPECS, "n": int(os.environ.get("BROWNOUT_HARD_N", "32")),
                             "rate": float(os.environ.get("BROWNOUT_HARD_RATE", "2.0")),
@@ -49,7 +56,10 @@ COLUMNS = ("dataset", "policy", "n", "accuracy", "deadline_met", "correct_and_on
            "rejected_workflows",
            "latency_p50_s", "latency_p90_s", "thinking_tokens_mean", "think", "cut", "announced",
            "rejected", "pressured_samples", "jev_before_first_token", "jev_during_decode", "jev_tier_lowered",
-           "jev_mean_wait_s", "jev_mean_call_s", "jev_failure_rate", "serial_wait_mean_s", "oracle_hit_rate", "paired_n", "online_exact", "jev_exact",
+           "jev_mean_wait_s", "jev_mean_call_s", "jev_failure_rate", "serial_wait_mean_s", "oracle_hit_rate",
+           "cut_mode", "ranked_cuts_with_probs", "ranked_cuts_flat", "ranked_shed_tokens",
+           "probe_labeled", "probe_probes", "probe_needed_below_used", "probe_errors",
+           "paired_n", "online_exact", "jev_exact",
            "online_within_one", "jev_within_one", "online_under", "jev_under")
 JEV_COUNTERS = ("before_first_token", "during_decode", "tier_lowered", "asked", "wait_s")
 RESULTS: list[dict] = []
@@ -109,10 +119,11 @@ def write_results() -> None:
 def test_policy_under_load(dataset, spec):
     sw = SWEEPS[dataset]
     n, rate = sw["n"], sw["rate"]
-    policy, notice, predictor = (spec.split(":") + ["", ""])[:3]
+    policy, notice, predictor, mode = (spec.split(":") + ["", "", ""])[:4]
     if predictor == "jev-learn" and "learner" not in gw("GET", "/v1/stats")["jev"]:
         pytest.skip("trained Jev: the online Jev learner is not deployed yet")
     gw("POST", "/admin/policy", json={"policy": policy, "notice": notice or "silent", "predictor": predictor or "jev",
+                                        "cut": mode or "proportional",
                                         "reject_waiting": REJECT_WAITING, "admit_rate": ADMIT_RATE,
                                         "admit_burst": ADMIT_BURST, "reset": True})
     before = gw("GET", "/v1/stats")
@@ -124,7 +135,7 @@ def test_policy_under_load(dataset, spec):
                        capture_output=True, text=True, timeout=3600)
     (out / "loadgen.log").write_text(p.stdout + p.stderr)
     assert p.returncode == 0, p.stderr[-2000:]
-    after = gw("GET", "/v1/stats")
+    after = wait_for_probes()
     s = json.loads((out / "summary.json").read_text())
     d = {k: after["gateway"][k] - before["gateway"][k] for k in COUNTERS}
     j = {k: after["jev"][k] - before["jev"][k] for k in JEV_COUNTERS}
@@ -138,6 +149,11 @@ def test_policy_under_load(dataset, spec):
            "jev_failure_rate": failure_rate(before, after),
            "serial_wait_mean_s": round(d["serial_wait_s"] / d["serial_waits"], 3) if d["serial_waits"] else None,
            "oracle_hit_rate": round(d["oracle_hits"] / oracle, 3) if oracle else None,
+           "cut_mode": after["controller"]["mode"],
+           **{f"ranked_{k}": after["controller"]["ranked"][k] - before["controller"]["ranked"][k]
+              for k in ("cuts_with_probs", "cuts_flat", "shed_tokens")},
+           **{f"probe_{k}": after["probe"][k] - before["probe"][k]
+              for k in ("labeled", "probes", "needed_below_used", "errors")},
            **compare(before, after)}
     RESULTS.append(row)
     write_results()
@@ -159,6 +175,22 @@ def test_policy_under_load(dataset, spec):
         assert d["serial_waits"] == d["think"] and row["jev_before_first_token"] > 0
     if predictor == "oracle":
         assert d["oracle_hits"] > 0
+    if mode == "ranked" and d["cut"] + d["announced"] > 0:
+        assert row["ranked_cuts_with_probs"] + row["ranked_cuts_flat"] > 0
+    if after["gateway"]["labels"] == "needed" and policy == "none":
+        assert row["probe_labeled"] > 0 and row["probe_errors"] == 0
+
+
+def wait_for_probes(timeout_s: float = 900.0) -> dict:
+    """The gateway labels finished requests in the background; wait until every probe has landed."""
+    t0 = time.time()
+    while True:
+        st = gw("GET", "/v1/stats")
+        if st["probe"]["queued"] == 0 and st["probe"]["in_flight"] == 0:
+            return st
+        if time.time() - t0 > timeout_s:
+            raise AssertionError(f"probes still running after {timeout_s}s: {st['probe']}")
+        time.sleep(2)
 
 
 def test_jev_answered_and_classifier_learned():

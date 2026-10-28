@@ -13,13 +13,27 @@ OBJECTIVE = (
     "spend before it closes its reasoning, if nothing limits it. Recent requests to the same model "
     "and the thinking tokens they actually used are listed for calibration."
 )
+OBJECTIVE_NEEDED = (
+    "A reasoning model is about to answer this request. Predict the smallest thinking budget at which "
+    "its final answer is already the same as with unlimited thinking: the point past which more thinking "
+    "no longer changes the answer. Recent requests to the same model and the thinking budget each one "
+    "turned out to need are listed for calibration."
+)
+LABELS = {
+    "length": (OBJECTIVE, "thinking_tokens_used", "How many thinking tokens will the model use on this request?"),
+    "needed": (OBJECTIVE_NEEDED, "thinking_tokens_needed",
+               "How many thinking tokens does the model need before its answer stops changing?"),
+}
 
 
 class JevPrior:
     def __init__(self, buckets: Buckets, url: str | list[str] = "http://127.0.0.1:8791/v1/systemone", *,
                  api_key: str | None = None, model: str = "open-jev", timeout: float = 2.0,
                  head_chars: int = 1000, tail_chars: int = 300, max_inflight: int = 1,
-                 transport: httpx.AsyncBaseTransport | None = None):
+                 transport: httpx.AsyncBaseTransport | None = None, label: str = "length"):
+        if label not in LABELS:
+            raise ValueError(f"label must be one of {tuple(LABELS)}")
+        self.label = label
         self.urls = [u.strip() for u in (url.split(",") if isinstance(url, str) else url) if u.strip()]
         self.url_inflight = {u: 0 for u in self.urls}
         self.buckets, self.url, self.model = buckets, self.urls[0], model
@@ -40,15 +54,16 @@ class JevPrior:
             req["prompt_tail"] = prompt[-self.tail_chars:]
         elif len(prompt) > self.head_chars:
             req["prompt_head"] = prompt
+        objective, field, instructions = LABELS[self.label]
         state = {
-            "objective": OBJECTIVE,
+            "objective": objective,
             "request": req,
-            "recent_requests": [{"prompt": e.prompt, "thinking_tokens_used": e.thinking_tokens,
+            "recent_requests": [{"prompt": e.prompt, field: e.thinking_tokens,
                                  "bucket": self.buckets.label(e.bucket)} for e in examples],
         }
         question = {
             "type": "score",
-            "instructions": "How many thinking tokens will the model use on this request?",
+            "instructions": instructions,
             "criteria": [f"{lab} thinking tokens" for lab in self.buckets.labels()],
         }
         return {"model": self.model, "state": state, "questions": {"tier": question}}
