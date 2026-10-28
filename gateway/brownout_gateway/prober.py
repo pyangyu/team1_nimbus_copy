@@ -12,6 +12,7 @@ label used to.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from dataclasses import dataclass, field
 
@@ -73,7 +74,7 @@ class Prober:
                     await self._label(job)
                 except Exception:
                     self.counts["errors"] += 1
-                    self._observe(job, job.used, job.natural)
+                    self._observe(job, job.used, job.natural, -1)
                 finally:
                     self.in_flight -= 1
         finally:
@@ -95,8 +96,9 @@ class Prober:
             self._observe(job, job.used, job.natural)
             return
         edges = sorted((e for e in job.marks if 0 < e < job.used), reverse=True)[: self.max_edges]
-        needed = job.used
+        needed, probes = job.used, 1
         for e in edges:
+            probes += 1
             got = await self._answer(job, job.thinking[: job.marks[e]])
             stat = self.by_edge.setdefault(e, {"probed": 0, "agreed": 0})
             stat["probed"] += 1
@@ -107,13 +109,21 @@ class Prober:
         if needed < job.used:
             self.counts["needed_below_used"] += 1
         # a request that hit its own budget without a matching lower edge needed at least what it used
-        self._observe(job, needed, job.natural or needed < job.used)
+        self._observe(job, needed, job.natural or needed < job.used, probes)
 
-    def _observe(self, job: ProbeJob, needed: int, finished: bool) -> None:
+    def _observe(self, job: ProbeJob, needed: int, finished: bool, probes: int = 0) -> None:
         self.counts["labeled"] += 1
         if finished:
             self.gw.oracle[job.key] = needed
-        self.gw.clf.observe(job.rid, needed, finished=finished, model=job.model)
+        obs = self.gw.clf.observe(job.rid, needed, finished=finished, model=job.model)
+        if self.gw.log is not None:
+            row = {"probe": True, "rid": job.rid, "used": job.used, "needed": needed, "natural": job.natural,
+                   "finished": finished, "probes": probes, "label": obs.get("label"), "bucket": obs.get("bucket"),
+                   "policy": self.gw.controller.policy, "predictor": self.gw.controller.predictor,
+                   "mode": self.gw.controller.mode, "ts": time.time()}
+            self.gw.log.write(json.dumps(row) + "
+")
+            self.gw.log.flush()
 
     def stats(self) -> dict:
         n = self.counts["labeled"]
