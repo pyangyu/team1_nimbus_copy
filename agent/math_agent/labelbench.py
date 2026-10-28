@@ -122,8 +122,9 @@ async def one(cl: Client, ex, budget: int, notices: dict[str, str], ns: list[int
                     "silent_correct": grade(sp, ex.gold, ex.dataset)})
         for name, notice in notices.items():
             for n_more in ns:
-                more, n2, fin2, _ = await cl.complete(solve + th + notice.format(N=n_more), n_more, ["</think>"])
-                ap, at = await answer(th + notice.format(N=n_more) + more, fin2 == "length")
+                text = notice.format(N=n_more, W=n_more)
+                more, n2, fin2, _ = await cl.complete(solve + th + text, n_more, ["</think>"])
+                ap, at = await answer(th + text + more, fin2 == "length")
                 key = f"{name}{n_more}"
                 row.update({f"{key}_pred": ap, f"{key}_correct": grade(ap, ex.gold, ex.dataset),
                             f"{key}_used_more": n2, f"{key}_closed": fin2 == "stop", f"{key}_answer_tokens": at})
