@@ -46,13 +46,15 @@ if HARD_DATASET:
     SWEEPS[HARD_DATASET] = {"specs": HARD_SPECS, "n": int(os.environ.get("BROWNOUT_HARD_N", "32")),
                             "rate": float(os.environ.get("BROWNOUT_HARD_RATE", "2.0")),
                             "budget": 4096, "max_budget": 6144, "solo_s": 300}
-CASES = [(ds, spec) for ds, sw in SWEEPS.items() for spec in sw["specs"]]
+SEEDS = [int(x) for x in os.environ.get("BROWNOUT_SEEDS", "0").split(",") if x.strip()]
+# one sweep per seed, specs in order within it, so an oracle spec always follows that seed's `none`
+CASES = [(ds, spec, seed) for seed in SEEDS for ds, sw in SWEEPS.items() for spec in sw["specs"]]
 REJECT_WAITING = float(os.environ.get("BROWNOUT_REJECT_WAITING", "2"))
 ADMIT_RATE = float(os.environ.get("BROWNOUT_ADMIT_RATE", "0.25"))
 ADMIT_BURST = float(os.environ.get("BROWNOUT_ADMIT_BURST", "8"))
 COUNTERS = ("think", "rejected", "deferred", "cut", "announced", "upstream_errors", "serial_waits", "serial_wait_s",
             "oracle_hits", "oracle_misses")
-COLUMNS = ("dataset", "policy", "n", "accuracy", "deadline_met", "correct_and_on_time", "admitted_correct_and_on_time",
+COLUMNS = ("dataset", "policy", "seed", "n", "accuracy", "deadline_met", "correct_and_on_time", "admitted_correct_and_on_time",
            "rejected_workflows",
            "latency_p50_s", "latency_p90_s", "thinking_tokens_mean", "think", "cut", "announced",
            "rejected", "pressured_samples", "jev_before_first_token", "jev_during_decode", "jev_tier_lowered",
@@ -115,8 +117,8 @@ def write_results() -> None:
     (OUT / "results.md").write_text("\n".join(lines) + "\n")
 
 
-@pytest.mark.parametrize("dataset,spec", CASES, ids=[f"{d}:{s}" for d, s in CASES])
-def test_policy_under_load(dataset, spec):
+@pytest.mark.parametrize("dataset,spec,seed", CASES, ids=[f"{d}:{s}:s{x}" for d, s, x in CASES])
+def test_policy_under_load(dataset, spec, seed):
     sw = SWEEPS[dataset]
     n, rate = sw["n"], sw["rate"]
     policy, notice, predictor, mode = (spec.split(":") + ["", "", ""])[:4]
@@ -127,11 +129,11 @@ def test_policy_under_load(dataset, spec):
                                         "reject_waiting": REJECT_WAITING, "admit_rate": ADMIT_RATE,
                                         "admit_burst": ADMIT_BURST, "reset": True})
     before = gw("GET", "/v1/stats")
-    out = OUT / f"{dataset}-{spec.replace(':', '-')}"
+    out = OUT / (f"{dataset}-{spec.replace(':', '-')}" + (f"-s{seed}" if seed else ""))
     out.mkdir(parents=True, exist_ok=True)
     p = subprocess.run([sys.executable, "-m", "math_agent.loadgen", "--dataset", dataset, "--rate", str(rate),
                         "--n", str(n), "--budget", str(sw["budget"]), "--max-budget", str(sw["max_budget"]),
-                        "--default-solo-s", str(sw["solo_s"]), "--seed", "0", "--out", str(out)],
+                        "--default-solo-s", str(sw["solo_s"]), "--seed", str(seed), "--out", str(out)],
                        capture_output=True, text=True, timeout=3600)
     (out / "loadgen.log").write_text(p.stdout + p.stderr)
     assert p.returncode == 0, p.stderr[-2000:]
@@ -141,7 +143,8 @@ def test_policy_under_load(dataset, spec):
     j = {k: after["jev"][k] - before["jev"][k] for k in JEV_COUNTERS}
     hist = [a - b for a, b in zip(after["pressure"]["p_hist_deciles"], before["pressure"]["p_hist_deciles"])]
     oracle = d["oracle_hits"] + d["oracle_misses"]
-    row = {"dataset": dataset, "policy": spec, **{k: s.get(k) for k in COLUMNS if k in s}, "rejected_workflows": s.get("rejected"),
+    row = {"dataset": dataset, "policy": spec, "seed": seed, **{k: s.get(k) for k in COLUMNS if k in s},
+           "rejected_workflows": s.get("rejected"),
            **d, "pressured_samples": sum(hist[1:]), "observed": observed(after) - observed(before),
            **{f"jev_{k}": j[k] for k in ("before_first_token", "during_decode", "tier_lowered")},
            "jev_mean_wait_s": round(j["wait_s"] / j["asked"], 3) if j["asked"] else None,

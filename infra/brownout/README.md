@@ -68,6 +68,7 @@ The policy sweep is controlled by environment variables on the agent box. They a
 | `BROWNOUT_REJECT_WAITING` | `2` (`defer` only) |
 | `BROWNOUT_ADMIT_RATE` | `0.25` new workflows/s (`reject`) |
 | `BROWNOUT_ADMIT_BURST` | `8` (`reject`) |
+| `BROWNOUT_SEEDS` | `0`; comma-separated loadgen seeds, one full sweep per seed (result dirs get `-s<seed>` for seeds other than 0) |
 | `BROWNOUT_GATEWAY_ARGS` | extra gateway flags, e.g. `--labels needed` (needed-budget labels by probing; see `../../gateway/README.md`) |
 | `BROWNOUT_SKIP_AGENT_LIVE` | set to skip `test_live.py` and run the sweep only |
 
