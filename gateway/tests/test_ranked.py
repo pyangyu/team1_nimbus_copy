@@ -195,3 +195,10 @@ def test_ranked_keeps_credit_from_finished_requests():
     ctl.monitor.set(0, 10)
     ctl.tick()
     assert ctl.bank == 0.0
+
+
+def test_admin_sets_the_shed_cap(run):
+    gw, fake, c = make()
+    assert run(c.post("/admin/policy", json={"policy": "uniform", "max_frac": 0.5})).status_code == 200
+    assert gw.controller.max_frac == 0.5 and gw.stats()["controller"]["max_frac"] == 0.5
+    assert run(c.post("/admin/policy", json={"policy": "uniform", "max_frac": 1.5})).status_code == 400

@@ -218,5 +218,5 @@ class Controller:
 
     def stats(self) -> dict:
         return {"policy": self.policy, "notice": self.notice, "predictor": self.predictor, "mode": self.mode,
-                "cutting": self.cutting, "in_flight": len(self.active), "cuts": self.cuts,
+                "cutting": self.cutting, "in_flight": len(self.active), "cuts": self.cuts, "max_frac": self.max_frac,
                 "ranked": {**self.ranked, "bank": round(self.bank, 1)}}

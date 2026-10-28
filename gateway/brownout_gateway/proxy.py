@@ -314,6 +314,11 @@ class Gateway:
                                        body.get("predictor"), body.get("cut"))
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
+        if "max_frac" in body:
+            f = float(body["max_frac"])
+            if not 0 < f <= 1:
+                return JSONResponse({"error": "max_frac must be in (0, 1]"}, status_code=400)
+            self.controller.max_frac = f
         if "reject_waiting" in body:
             self.reject_waiting = float(body["reject_waiting"])
         if "admit_rate" in body:

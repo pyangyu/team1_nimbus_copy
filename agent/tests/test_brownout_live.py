@@ -52,9 +52,10 @@ CASES = [(ds, spec, seed) for seed in SEEDS for ds, sw in SWEEPS.items() for spe
 REJECT_WAITING = float(os.environ.get("BROWNOUT_REJECT_WAITING", "2"))
 ADMIT_RATE = float(os.environ.get("BROWNOUT_ADMIT_RATE", "0.25"))
 ADMIT_BURST = float(os.environ.get("BROWNOUT_ADMIT_BURST", "8"))
+MAX_FRAC = float(os.environ.get("BROWNOUT_MAX_FRAC", "0.9"))
 COUNTERS = ("think", "rejected", "deferred", "cut", "announced", "upstream_errors", "serial_waits", "serial_wait_s",
             "oracle_hits", "oracle_misses")
-COLUMNS = ("dataset", "policy", "seed", "n", "accuracy", "deadline_met", "correct_and_on_time", "admitted_correct_and_on_time",
+COLUMNS = ("dataset", "policy", "seed", "max_frac", "n", "accuracy", "deadline_met", "correct_and_on_time", "admitted_correct_and_on_time",
            "rejected_workflows",
            "latency_p50_s", "latency_p90_s", "thinking_tokens_mean", "think", "cut", "announced",
            "rejected", "pressured_samples", "jev_before_first_token", "jev_during_decode", "jev_tier_lowered",
@@ -121,11 +122,16 @@ def write_results() -> None:
 def test_policy_under_load(dataset, spec, seed):
     sw = SWEEPS[dataset]
     n, rate = sw["n"], sw["rate"]
-    policy, notice, predictor, mode = (spec.split(":") + ["", "", ""])[:4]
+    parts = spec.split(":")
+    # an optional trailing f<frac> caps the shed fraction for this run (default BROWNOUT_MAX_FRAC)
+    max_frac = MAX_FRAC
+    if parts and parts[-1].startswith("f") and parts[-1][1:].replace(".", "", 1).isdigit():
+        max_frac = float(parts.pop()[1:])
+    policy, notice, predictor, mode = (parts + ["", "", ""])[:4]
     if predictor == "jev-learn" and "learner" not in gw("GET", "/v1/stats")["jev"]:
         pytest.skip("trained Jev: the online Jev learner is not deployed yet")
     gw("POST", "/admin/policy", json={"policy": policy, "notice": notice or "silent", "predictor": predictor or "jev",
-                                        "cut": mode or "proportional",
+                                        "cut": mode or "proportional", "max_frac": max_frac,
                                         "reject_waiting": REJECT_WAITING, "admit_rate": ADMIT_RATE,
                                         "admit_burst": ADMIT_BURST, "reset": True})
     before = gw("GET", "/v1/stats")
@@ -143,7 +149,8 @@ def test_policy_under_load(dataset, spec, seed):
     j = {k: after["jev"][k] - before["jev"][k] for k in JEV_COUNTERS}
     hist = [a - b for a, b in zip(after["pressure"]["p_hist_deciles"], before["pressure"]["p_hist_deciles"])]
     oracle = d["oracle_hits"] + d["oracle_misses"]
-    row = {"dataset": dataset, "policy": spec, "seed": seed, **{k: s.get(k) for k in COLUMNS if k in s},
+    row = {"dataset": dataset, "policy": spec, "seed": seed, "max_frac": max_frac,
+           **{k: s.get(k) for k in COLUMNS if k in s},
            "rejected_workflows": s.get("rejected"),
            **d, "pressured_samples": sum(hist[1:]), "observed": observed(after) - observed(before),
            **{f"jev_{k}": j[k] for k in ("before_first_token", "during_decode", "tier_lowered")},

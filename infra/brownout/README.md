@@ -58,7 +58,7 @@ The policy sweep is controlled by environment variables on the agent box. They a
 
 | Variable | Default |
 |---|---|
-| `BROWNOUT_POLICIES` | `none,reject,uniform,brownout:silent:jev,brownout:announced:jev,brownout:announced:jev-serial,brownout:announced:online,brownout:announced:oracle,brownout:announced:jev-learn` (`policy:notice:predictor[:cut]`, cut = `proportional` or `ranked`; `skip` runs no sweep on this dataset: `jev` = untrained Jev beside the LLM, `jev-serial` = untrained Jev before the LLM, `online` = the word model, `oracle` = the thinking length the same prompt used in an earlier uncut run (an upper bound; run `none` first), `jev-learn` = trained Jev, skipped until its learner is deployed) |
+| `BROWNOUT_POLICIES` | `none,reject,uniform,brownout:silent:jev,brownout:announced:jev,brownout:announced:jev-serial,brownout:announced:online,brownout:announced:oracle,brownout:announced:jev-learn` (`policy:notice:predictor[:cut][:f<frac>]`, cut = `proportional` or `ranked`, `f0.5` caps that run's shed fraction (default `BROWNOUT_MAX_FRAC`, 0.9); `skip` runs no sweep on this dataset: `jev` = untrained Jev beside the LLM, `jev-serial` = untrained Jev before the LLM, `online` = the word model, `oracle` = the thinking length the same prompt used in an earlier uncut run (an upper bound; run `none` first), `jev-learn` = trained Jev, skipped until its learner is deployed) |
 | `BROWNOUT_N` | `64` |
 | `BROWNOUT_RATE` | `4.0` workflows/s (24 at 1/s never queued on one A10G) |
 | `BROWNOUT_DATASET` | `gsm8k` (budget 1024, up to 2048) |
