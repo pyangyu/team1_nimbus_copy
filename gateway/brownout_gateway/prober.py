@@ -121,8 +121,7 @@ class Prober:
                    "finished": finished, "probes": probes, "label": obs.get("label"), "bucket": obs.get("bucket"),
                    "policy": self.gw.controller.policy, "predictor": self.gw.controller.predictor,
                    "mode": self.gw.controller.mode, "ts": time.time()}
-            self.gw.log.write(json.dumps(row) + "
-")
+            self.gw.log.write(json.dumps(row) + "\n")
             self.gw.log.flush()
 
     def stats(self) -> dict:
