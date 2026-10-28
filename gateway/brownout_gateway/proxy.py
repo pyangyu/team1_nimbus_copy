@@ -322,6 +322,7 @@ class Gateway:
             self.admit_burst = float(body["admit_burst"])
         if body.get("reset"):
             self.clf.reset()
+            self.controller.reset_bank()
         self.refill()
         self.admitted.clear()
         return JSONResponse(self.controller.stats())

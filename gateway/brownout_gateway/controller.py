@@ -59,6 +59,7 @@ class Controller:
         self.min_left, self.max_frac, self.active_at, self.interval = min_left, max_frac, active_at, interval
         self.active: dict[str, Active] = {}
         self.cuts = 0
+        self.bank = 0.0
         self.ranked = {"cuts_with_probs": 0, "cuts_flat": 0, "ticks": 0, "shed_tokens": 0}
 
     def set_policy(self, policy: str, notice: str | None = None, predictor: str | None = None,
@@ -108,13 +109,19 @@ class Controller:
         return a
 
     def finish(self, a: Active) -> None:
-        self.active.pop(a.rid, None)
+        if self.active.pop(a.rid, None) is not None and self.ranking and a.cut_from is not None:
+            # keep the request's ledger entry: what it gave up beyond (or short of) its proportional share
+            # stays banked, so the requests it spared are not cut again once it leaves
+            self.bank += (a.requested - a.limit) - a.requested * self.frac(a)
 
     # ranked mode
 
     def shed_target(self) -> float:
         """Tokens the proportional rule would take from the requested budgets at this pressure."""
         return sum(a.requested * self.frac(a) for a in self.active.values())
+
+    def reset_bank(self) -> None:
+        self.bank = 0.0
 
     def conditional(self, a: Active) -> list[float]:
         """The request's distribution over needed-budget buckets, given what it has already used.
@@ -155,7 +162,7 @@ class Controller:
 
     def rank_targets(self) -> dict[str, int]:
         acts = list(self.active.values())
-        need = self.shed_target() - sum(a.requested - a.limit for a in acts)
+        need = self.shed_target() - sum(a.requested - a.limit for a in acts) - self.bank
         if need <= 0:
             return {}
         heap: list[tuple[float, int, str, int, int, int]] = []
@@ -183,6 +190,8 @@ class Controller:
 
     def tick(self) -> None:
         if not self.cutting:
+            if self.bank:
+                self.bank = 0.0  # the episode is over; the next one starts even
             return
         if self.ranking:
             self.ranked["ticks"] += 1
@@ -209,4 +218,5 @@ class Controller:
 
     def stats(self) -> dict:
         return {"policy": self.policy, "notice": self.notice, "predictor": self.predictor, "mode": self.mode,
-                "cutting": self.cutting, "in_flight": len(self.active), "cuts": self.cuts, "ranked": dict(self.ranked)}
+                "cutting": self.cutting, "in_flight": len(self.active), "cuts": self.cuts,
+                "ranked": {**self.ranked, "bank": round(self.bank, 1)}}

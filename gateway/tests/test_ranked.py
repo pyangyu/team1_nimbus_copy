@@ -176,3 +176,22 @@ def test_admin_rejects_a_bad_cut_mode(run):
     assert run(c.post("/admin/policy", json={"policy": "brownout", "cut": "nope"})).status_code == 400
     assert run(c.post("/admin/policy", json={"policy": "brownout", "cut": "ranked"})).json()["mode"] == "ranked"
     assert gw.stats()["gateway"]["labels"] == "length" and gw.stats()["probe"]["enabled"] is False
+
+
+def test_ranked_keeps_credit_from_finished_requests():
+    ctl = Controller(PressureMonitor(), policy="brownout", mode="ranked", interval=1)
+    ctl.monitor.set(5, 10)
+    done = ctl.start(Active("done", 1000, 1000, "normal", 1000))
+    done.set_probs(onehot(2), "test")
+    busy = ctl.start(Active("busy", 1000, 1000, "normal", 1000))
+    busy.set_probs(onehot(6), "test")
+    ctl.tick()
+    assert done.limit == 256 and busy.limit == 744
+    done.used = 256
+    ctl.finish(done)  # it gave up 744 against a proportional share of 500: 244 banked
+    assert ctl.bank == pytest.approx(244)
+    ctl.tick()
+    assert busy.limit == 744, "the spared request is not cut again when the hard-cut one leaves"
+    ctl.monitor.set(0, 10)
+    ctl.tick()
+    assert ctl.bank == 0.0
