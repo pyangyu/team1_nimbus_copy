@@ -10,7 +10,7 @@ tar xzf /tmp/src.tgz -C $SRC
 [[ -x /opt/brownout/venv/bin/python ]] || uv venv -q --python 3.12 /opt/brownout/venv
 PY=/opt/brownout/venv/bin/python
 if [[ $ROLE == jev ]]; then
-  uv pip install -q --python $PY -e $SRC/classifier -e $SRC/gateway
+  uv pip install -q --python $PY -e $SRC/classifier -e $SRC/gateway -e "$SRC/agent[test,math]"
   for unit in $(systemctl list-units --all --plain --no-legend 'open-jev@*' | awk '{print $1}'); do
     port=${unit#open-jev@}
     port=${port%.service}
