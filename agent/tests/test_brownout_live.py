@@ -43,7 +43,9 @@ DATASET = os.environ.get("BROWNOUT_DATASET", "gsm8k")
 HARD_DATASET = os.environ.get("BROWNOUT_HARD_DATASET", "math500")
 SWEEPS = {}
 if SPECS:
-    SWEEPS[DATASET] = {"specs": SPECS, "n": N, "rate": RATE, "budget": 1024, "max_budget": 2048, "solo_s": 90}
+    SWEEPS[DATASET] = {"specs": SPECS, "n": N, "rate": RATE, "budget": int(os.environ.get("BROWNOUT_BUDGET", "1024")),
+                       "max_budget": int(os.environ.get("BROWNOUT_MAX_BUDGET", "2048")),
+                       "solo_s": float(os.environ.get("BROWNOUT_SOLO_S", "90"))}
 if HARD_DATASET:
     SWEEPS[HARD_DATASET] = {"specs": HARD_SPECS, "n": int(os.environ.get("BROWNOUT_HARD_N", "32")),
                             "rate": float(os.environ.get("BROWNOUT_HARD_RATE", "2.0")),
