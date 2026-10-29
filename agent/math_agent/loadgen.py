@@ -30,7 +30,7 @@ from .datasets.math import MIXED, source
 from .workflow import run_workflow
 
 DEFAULT_MIX = "gsm8k=0.5,math500=0.35,aime2026=0.15"
-DEFAULT_BUDGETS = "gsm8k=1024,math500=4096,aime2026=8192"
+DEFAULT_BUDGETS = "gsm8k=1024,math500=4096,aime2026=6144"  # vLLM serves 8K of context: 6144 thinking + a 1024 answer fits
 DEFAULT_SOLOS = "gsm8k=60,math500=240,aime2026=600"
 
 
