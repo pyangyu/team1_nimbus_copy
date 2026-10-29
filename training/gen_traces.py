@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-"""Step 1: natural Qwen3-4B traces on the MATH train split (levels 3-5), the raw material for the SFT data.
+"""Step 1: natural Qwen3-4B traces, the raw material for the SFT data and the GRPO prompts.
 
-MATH-500 and AIME 2026 are kept for evaluation; MATH-500 comes from the MATH test split, so the train split
-does not overlap with it (checked again below by problem text).
+Default: the MATH train split (levels 3-5). MATH-500 and AIME 2026 are kept for evaluation; MATH-500 comes
+from the MATH test split, so the train split does not overlap with it (checked again below by problem text).
+--dataset can also be any Hugging Face dataset with a problem and an answer column, e.g. the harder
+competition problems in agentica-org/DeepScaleR-Preview-Dataset. --samples > 1 gives several traces per
+problem, which prep_grpo.py uses to keep problems the model solves only some of the time.
 
 Writes --out/phase_a.jsonl in the same format as aime_drop_bench.py (plus q, gold, level), in chunks, so a
 stopped run keeps what it finished and just continues when started again.
 
   python gen_traces.py --out traces                 (2000 problems, roughly 1-2 h on an RTX 4090)
   python gen_traces.py --out traces --n 300         (quick)
+  python gen_traces.py --out hard --dataset agentica-org/DeepScaleR-Preview-Dataset --n 2400 --samples 4 \
+         --max-think 14000 --max-num-seqs 128      (harder problems for GRPO, H100)
   python gen_traces.py --out mock_traces --n 20 --mock
 """
 from __future__ import annotations
@@ -40,6 +45,31 @@ def load_math_train(levels, seed):
             if lv not in levels or gold is None or r["problem"].strip() in test_q:
                 continue
             items.append({"id": f"mathtrain/{s}/{i}", "q": r["problem"], "gold": gold, "level": lv})
+    random.Random(seed).shuffle(items)
+    return items
+
+
+def load_hf(name, seed):
+    """Any dataset with a problem column (problem / question / prompt) and an answer column (answer / solution)."""
+    from datasets import load_dataset
+    ds = load_dataset(name, split="train")
+    cols = set(ds.column_names)
+    qk = next((k for k in ("problem", "question", "prompt") if k in cols), None)
+    ak = next((k for k in ("answer", "final_answer", "solution") if k in cols), None)
+    if qk is None or ak is None:
+        raise SystemExit(f"{name}: need a problem and an answer column, found {sorted(cols)}")
+    tag = name.split("/")[-1]
+    items = []
+    for i, r in enumerate(ds):
+        q, gold = r[qk], r[ak]
+        if not isinstance(q, str) or gold is None:
+            continue
+        gold = str(gold).strip()
+        if ak == "solution":                        # full solutions: keep the boxed answer only
+            gold = TB.last_boxed(gold)
+        if not gold or len(gold) > 60:              # long answers (lists, proofs) are hard to grade
+            continue
+        items.append({"id": f"{tag}/{i}", "q": q.strip(), "gold": gold, "level": None})
     random.Random(seed).shuffle(items)
     return items
 
@@ -91,6 +121,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", default="Qwen/Qwen3-4B")
     ap.add_argument("--n", type=int, default=2000, help="problems")
+    ap.add_argument("--dataset", default="math_train", help="math_train, or a Hugging Face dataset id")
+    ap.add_argument("--samples", type=int, default=1, help="traces per problem")
     ap.add_argument("--levels", type=int, nargs="+", default=[3, 4, 5])
     ap.add_argument("--max-think", type=int, default=12000, help="longer traces are dropped later anyway")
     ap.add_argument("--answer-max", type=int, default=1500)
@@ -103,11 +135,16 @@ def main():
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
 
-    problems = load_math_train(set(a.levels), a.seed)[:a.n]
+    if a.dataset == "math_train":
+        problems = load_math_train(set(a.levels), a.seed)[:a.n]
+        what = f"MATH train problems (levels {a.levels})"
+    else:
+        problems = load_hf(a.dataset, a.seed)[:a.n]
+        what = f"{a.dataset} problems"
     path = a.out / "phase_a.jsonl"
-    done = {json.loads(l)["id"] for l in path.open()} if path.exists() else set()
-    todo = [p for p in problems if p["id"] not in done]
-    print(f"{len(problems)} MATH train problems (levels {a.levels}); {len(done)} already done, {len(todo)} to go",
+    done = {json.loads(l)["sid"] for l in path.open()} if path.exists() else set()
+    todo = [{**p, "k": k} for p in problems for k in range(a.samples) if f"{p['id']}#s{k}" not in done]
+    print(f"{len(problems)} {what} x {a.samples} samples; {len(done)} traces already done, {len(todo)} to go",
           flush=True)
 
     max_len = 2048 + a.max_think + a.answer_max
@@ -126,7 +163,8 @@ def main():
         outs = eng.generate([prompt_ids(p["q"]) for p in part], a.max_think + a.answer_max, a.seed + len(done) + c)
         with path.open("a") as f:
             for p, (ids, why) in zip(part, outs):
-                f.write(json.dumps({"sid": p["id"] + "#s0", "id": p["id"], "k": 0, "q": p["q"], "gold": p["gold"],
+                f.write(json.dumps({"sid": f"{p['id']}#s{p['k']}", "id": p["id"], "k": p["k"], "q": p["q"],
+                                    "gold": p["gold"],
                                     "level": p["level"], "finish": why, "gen": ids}) + "\n")
         ntok = sum(len(o[0]) for o in outs)
         ntok_all += ntok

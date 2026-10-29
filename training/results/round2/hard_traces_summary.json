@@ -1,0 +1,11 @@
+{
+  "traces": 6400,
+  "finished_thinking": 5662,
+  "ran_out": 738,
+  "correct_of_finished": 0.831,
+  "thinking_tokens": {
+    "median": 5471.0,
+    "p10": 1985,
+    "p90": 11464
+  }
+}

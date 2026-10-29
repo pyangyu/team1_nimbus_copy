@@ -1,0 +1,24 @@
+256 traces in both runs, 33 problems
+
+arm                 base acc  tuned acc  base think  tuned think  base ans  tuned ans  tuned closed  tuned W used
+cut_now                 17.6       20.3        0.50         0.50        36         10                            
+cut_now_hard            18.0       21.5        0.50         0.50        30          9                            
+natural_final           42.2       43.4        1.00         1.00        29          8                            
+no_think                 3.1        3.1        0.00         0.00        48          6                            
+silent_0.1              22.3       25.4        0.60         0.60        37          8                            
+silent_0.25             28.1       32.4        0.75         0.75        37          8                            
+warn_count_0.1          19.5       29.3        0.52         0.57        29          8         0.496          1.01
+warn_count_0.25         22.3       33.6        0.54         0.62        28          8         0.766          0.46
+warn_soft_0.1           21.1       28.5        0.55         0.58        35          8         0.352          1.01
+warn_soft_0.25          26.2       32.8        0.61         0.64        33          7          0.77          0.55
+
+paired difference (pp), 95% CI bootstrapped over problems
+  tuned warn_count_0.25 - base silent_0.25       +5.5  [+0.4, +11.3]
+  tuned warn_count_0.25 - base warn_count_0.25  +11.3  [+6.1, +17.1]
+  tuned warn_soft_0.25 - base silent_0.25        +4.7  [+0.4, +10.5]
+  tuned warn_count_0.1 - base silent_0.1         +7.0  [+2.7, +12.2]
+  tuned warn_count_0.1 - base warn_count_0.1     +9.8  [+4.0, +16.3]
+  tuned warn_soft_0.1 - base silent_0.1          +6.2  [+2.7, +10.3]
+  tuned natural_final - base natural_final       +1.2  [+0.0, +3.6]
+
+

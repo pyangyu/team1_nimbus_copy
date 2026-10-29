@@ -1,0 +1,160 @@
+{
+  "model": "r2/merged",
+  "dataset": "MathArena/brumo_2025",
+  "problems": 30,
+  "samples_planned": 8,
+  "traces": 240,
+  "capped_share": 0.008,
+  "natural_accuracy_all_traces": 64.2,
+  "natural_accuracy_finished_traces": 64.7,
+  "median_natural_thinking_finished": 12665.5,
+  "answer_mode": "final",
+  "drop_at": 0.5,
+  "allow": [
+    0.25,
+    0.1
+  ],
+  "tested_traces": 238,
+  "tested_problems": 30,
+  "arms": {
+    "natural": {
+      "accuracy": 64.7,
+      "think_vs_natural": 1.0,
+      "mean_answer_tokens": 8,
+      "total_tokens_vs_natural": 1.0
+    },
+    "no_think": {
+      "accuracy": 6.7,
+      "think_vs_natural": 0.0,
+      "mean_answer_tokens": 7,
+      "total_tokens_vs_natural": 0.0,
+      "answers_hit_cap": 8
+    },
+    "cut_now": {
+      "accuracy": 38.2,
+      "think_vs_natural": 0.5,
+      "mean_answer_tokens": 9,
+      "total_tokens_vs_natural": 0.5,
+      "answers_hit_cap": 8
+    },
+    "cut_now_hard": {
+      "accuracy": 39.5,
+      "think_vs_natural": 0.5,
+      "mean_answer_tokens": 9,
+      "total_tokens_vs_natural": 0.5,
+      "answers_hit_cap": 10
+    },
+    "silent_0.25": {
+      "accuracy": 50.4,
+      "think_vs_natural": 0.75,
+      "mean_answer_tokens": 9,
+      "total_tokens_vs_natural": 0.75,
+      "answers_hit_cap": 7
+    },
+    "warn_soft_0.25": {
+      "accuracy": 57.1,
+      "think_vs_natural": 0.635,
+      "mean_answer_tokens": 8,
+      "total_tokens_vs_natural": 0.627,
+      "answers_hit_cap": 3,
+      "closed_itself_share": 0.777,
+      "grace_window_used_median": 0.5
+    },
+    "warn_count_0.25": {
+      "accuracy": 54.2,
+      "think_vs_natural": 0.619,
+      "mean_answer_tokens": 9,
+      "total_tokens_vs_natural": 0.608,
+      "answers_hit_cap": 5,
+      "closed_itself_share": 0.807,
+      "grace_window_used_median": 0.4
+    },
+    "silent_0.1": {
+      "accuracy": 43.3,
+      "think_vs_natural": 0.6,
+      "mean_answer_tokens": 9,
+      "total_tokens_vs_natural": 0.6,
+      "answers_hit_cap": 8
+    },
+    "warn_soft_0.1": {
+      "accuracy": 48.7,
+      "think_vs_natural": 0.575,
+      "mean_answer_tokens": 9,
+      "total_tokens_vs_natural": 0.572,
+      "answers_hit_cap": 7,
+      "closed_itself_share": 0.437,
+      "grace_window_used_median": 1.01
+    },
+    "warn_count_0.1": {
+      "accuracy": 49.2,
+      "think_vs_natural": 0.57,
+      "mean_answer_tokens": 9,
+      "total_tokens_vs_natural": 0.566,
+      "answers_hit_cap": 6,
+      "closed_itself_share": 0.513,
+      "grace_window_used_median": 1.0
+    }
+  },
+  "paired_ci_pp": {
+    "natural - no_think": [
+      58.0,
+      42.3,
+      73.1
+    ],
+    "natural - cut_now": [
+      26.5,
+      16.3,
+      37.4
+    ],
+    "silent_0.25 - cut_now": [
+      12.2,
+      6.4,
+      18.8
+    ],
+    "silent_0.1 - cut_now": [
+      5.0,
+      0.4,
+      10.0
+    ],
+    "warn_soft_0.25 - cut_now": [
+      18.9,
+      10.8,
+      28.2
+    ],
+    "warn_soft_0.25 - silent_0.25": [
+      6.7,
+      0.4,
+      14.0
+    ],
+    "warn_count_0.25 - silent_0.25": [
+      3.8,
+      -2.1,
+      10.5
+    ],
+    "warn_soft_0.1 - silent_0.1": [
+      5.5,
+      0.4,
+      11.5
+    ],
+    "warn_count_0.1 - silent_0.1": [
+      5.9,
+      1.3,
+      11.3
+    ],
+    "warn_soft_0.25 - silent_0.1": [
+      13.9,
+      7.1,
+      21.3
+    ],
+    "natural - warn_soft_0.25": [
+      7.6,
+      2.1,
+      13.8
+    ],
+    "cut_now - cut_now_hard": [
+      -1.3,
+      -5.4,
+      1.7
+    ]
+  }
+}

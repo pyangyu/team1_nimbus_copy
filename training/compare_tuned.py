@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Before vs after on AIME 2026: same natural traces, same cut points, final answer only.
+"""Before vs after on AIME 2026 (or any aime_drop_bench.py dataset): same natural traces, same cut points, final answer only.
 
   base   aime_final   (untrained Qwen3-4B: aime_drop_bench.py --traces aime_drop --answer-mode final)
   tuned  aime_sft     (aime_drop_bench.py --model lora_sft/merged --traces aime_drop --answer-mode final)
@@ -31,6 +31,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", type=Path, required=True)
     ap.add_argument("--tuned", type=Path, required=True)
+    ap.add_argument("--save", type=Path, help="where to write the JSON (default: --tuned/compare.json)")
     a = ap.parse_args()
     base, tuned = load(a.base), load(a.tuned)
     allow = json.loads((a.tuned / "config.json").read_text())["allow"]
@@ -77,8 +78,9 @@ def main():
         if kx in keys and ky in keys:
             res["paired_ci_pp"][name] = m = diff(xb, kx, yb, ky)
             print(f"  {name:44s} {m[0]:+6.1f}  [{m[1]:+.1f}, {m[2]:+.1f}]")
-    (a.tuned / "compare.json").write_text(json.dumps(res, indent=2))
-    print(f"\nsaved {a.tuned / 'compare.json'}")
+    out = a.save or a.tuned / "compare.json"
+    out.write_text(json.dumps(res, indent=2))
+    print(f"\nsaved {out}")
 
 
 if __name__ == "__main__":

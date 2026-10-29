@@ -1,0 +1,178 @@
+{
+  "traces": 238,
+  "arms": {
+    "cut_now": {
+      "base": {
+        "acc": 39.9,
+        "think": 0.5,
+        "answer_tokens": 9
+      },
+      "tuned": {
+        "acc": 38.2,
+        "think": 0.5,
+        "answer_tokens": 9
+      }
+    },
+    "cut_now_hard": {
+      "base": {
+        "acc": 41.2,
+        "think": 0.5,
+        "answer_tokens": 9
+      },
+      "tuned": {
+        "acc": 39.5,
+        "think": 0.5,
+        "answer_tokens": 9
+      }
+    },
+    "natural_final": {
+      "base": {
+        "acc": 64.7,
+        "think": 1.0,
+        "answer_tokens": 8
+      },
+      "tuned": {
+        "acc": 64.7,
+        "think": 1.0,
+        "answer_tokens": 8
+      }
+    },
+    "no_think": {
+      "base": {
+        "acc": 6.7,
+        "think": 0.0,
+        "answer_tokens": 9
+      },
+      "tuned": {
+        "acc": 6.7,
+        "think": 0.0,
+        "answer_tokens": 7
+      }
+    },
+    "silent_0.1": {
+      "base": {
+        "acc": 44.5,
+        "think": 0.6,
+        "answer_tokens": 10
+      },
+      "tuned": {
+        "acc": 43.3,
+        "think": 0.6,
+        "answer_tokens": 9
+      }
+    },
+    "silent_0.25": {
+      "base": {
+        "acc": 51.7,
+        "think": 0.75,
+        "answer_tokens": 9
+      },
+      "tuned": {
+        "acc": 50.4,
+        "think": 0.75,
+        "answer_tokens": 9
+      }
+    },
+    "warn_count_0.1": {
+      "base": {
+        "acc": 47.1,
+        "think": 0.586,
+        "answer_tokens": 9,
+        "closed_itself": 0.294,
+        "window_used_median": 1.02
+      },
+      "tuned": {
+        "acc": 49.2,
+        "think": 0.57,
+        "answer_tokens": 9,
+        "closed_itself": 0.513,
+        "window_used_median": 1.0
+      }
+    },
+    "warn_count_0.25": {
+      "base": {
+        "acc": 55.0,
+        "think": 0.669,
+        "answer_tokens": 9,
+        "closed_itself": 0.626,
+        "window_used_median": 0.83
+      },
+      "tuned": {
+        "acc": 54.2,
+        "think": 0.619,
+        "answer_tokens": 9,
+        "closed_itself": 0.807,
+        "window_used_median": 0.4
+      }
+    },
+    "warn_soft_0.1": {
+      "base": {
+        "acc": 46.2,
+        "think": 0.587,
+        "answer_tokens": 10,
+        "closed_itself": 0.256,
+        "window_used_median": 1.01
+      },
+      "tuned": {
+        "acc": 48.7,
+        "think": 0.575,
+        "answer_tokens": 9,
+        "closed_itself": 0.437,
+        "window_used_median": 1.01
+      }
+    },
+    "warn_soft_0.25": {
+      "base": {
+        "acc": 54.2,
+        "think": 0.666,
+        "answer_tokens": 9,
+        "closed_itself": 0.643,
+        "window_used_median": 0.78
+      },
+      "tuned": {
+        "acc": 57.1,
+        "think": 0.635,
+        "answer_tokens": 8,
+        "closed_itself": 0.777,
+        "window_used_median": 0.5
+      }
+    }
+  },
+  "paired_ci_pp": {
+    "tuned warn_count_0.25 - base silent_0.25": [
+      2.5,
+      -5.0,
+      10.0
+    ],
+    "tuned warn_count_0.25 - base warn_count_0.25": [
+      -0.8,
+      -5.0,
+      3.0
+    ],
+    "tuned warn_soft_0.25 - base silent_0.25": [
+      5.5,
+      -2.5,
+      13.4
+    ],
+    "tuned warn_count_0.1 - base silent_0.1": [
+      4.6,
+      -1.7,
+      10.8
+    ],
+    "tuned warn_count_0.1 - base warn_count_0.1": [
+      2.1,
+      -2.5,
+      7.1
+    ],
+    "tuned warn_soft_0.1 - base silent_0.1": [
+      4.2,
+      -2.9,
+      11.0
+    ],
+    "tuned natural_final - base natural_final": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  }
+}
