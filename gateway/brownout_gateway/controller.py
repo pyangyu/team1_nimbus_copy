@@ -59,9 +59,9 @@ class Controller:
     def __init__(self, monitor: PressureMonitor, *, policy: str = "brownout", notice: str = "silent",
                  predictor: str = "jev", mode: str = "proportional", buckets: Buckets | None = None,
                  min_left: int = 64, max_frac: float = 0.9, active_at: float = 0.05, interval: float = 0.25,
-                 exit_at: float | None = None):
+                 exit_at: float | None = None, bank: bool = False):
         self.monitor = monitor
-        self.exit_at = exit_at
+        self.exit_at, self.use_bank = exit_at, bank
         self.buckets = buckets or Buckets()
         self.set_policy(policy, notice, predictor, mode)
         self.min_left, self.max_frac, self.active_at, self.interval = min_left, max_frac, active_at, interval
@@ -122,9 +122,11 @@ class Controller:
         return a
 
     def finish(self, a: Active) -> None:
-        if self.active.pop(a.rid, None) is not None and self.ranking and a.cut_from is not None:
+        if self.active.pop(a.rid, None) is not None and self.ranking and self.use_bank and a.cut_from is not None:
             # keep the request's ledger entry: what it gave up beyond (or short of) its proportional share
-            # stays banked, so the requests it spared are not cut again once it leaves
+            # stays banked, so the requests it spared are not cut again once it leaves. Off by default: a
+            # hard-cut request banks most of its budget, and under sustained pressure the bank soon covers
+            # the whole shed target, so later arrivals are never cut and deadlines slip (10-29 sweep).
             self.bank += (a.requested - a.limit) - a.requested * self.frac(a)
 
     # ranked mode
@@ -248,4 +250,5 @@ class Controller:
     def stats(self) -> dict:
         return {"policy": self.policy, "notice": self.notice, "predictor": self.predictor, "mode": self.mode,
                 "cutting": self.cutting, "in_flight": len(self.active), "cuts": self.cuts, "max_frac": self.max_frac,
-                "exit_at": self.exit_at, "ranked": {**self.ranked, "bank": round(self.bank, 1)}}
+                "exit_at": self.exit_at, "use_bank": self.use_bank,
+                "ranked": {**self.ranked, "bank": round(self.bank, 1)}}

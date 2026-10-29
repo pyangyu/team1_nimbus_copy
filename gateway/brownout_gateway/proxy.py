@@ -340,6 +340,8 @@ class Gateway:
             if e is not None and not 0 < float(e) <= 1:
                 return JSONResponse({"error": "exit_at must be in (0, 1] or null"}, status_code=400)
             self.controller.exit_at = None if e is None else float(e)
+        if "bank" in body:
+            self.controller.use_bank = bool(body["bank"])
         if "judge_signal" in body:
             try:
                 JudgeScheduler(self, signal=body["judge_signal"])

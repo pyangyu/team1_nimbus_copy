@@ -56,6 +56,7 @@ ADMIT_RATE = float(os.environ.get("BROWNOUT_ADMIT_RATE", "0.25"))
 ADMIT_BURST = float(os.environ.get("BROWNOUT_ADMIT_BURST", "8"))
 MAX_FRAC = float(os.environ.get("BROWNOUT_MAX_FRAC", "0.9"))
 JUDGE_SIGNAL = os.environ.get("BROWNOUT_JUDGE_SIGNAL", "settled")
+BANK = os.environ.get("BROWNOUT_BANK", "0") == "1"
 LOADGEN_ARGS = shlex.split(os.environ.get("BROWNOUT_LOADGEN_ARGS", ""))  # e.g. --arrivals burstgpt
 COUNTERS = ("think", "rejected", "deferred", "cut", "announced", "upstream_errors", "serial_waits", "serial_wait_s",
             "oracle_hits", "oracle_misses")
@@ -141,7 +142,7 @@ def test_policy_under_load(dataset, spec, seed):
         pytest.skip("trained Jev: the online Jev learner is not deployed yet")
     gw("POST", "/admin/policy", json={"policy": policy, "notice": notice or "silent", "predictor": predictor or "jev",
                                         "cut": mode or "proportional", "max_frac": max_frac,
-                                        "exit_at": exit_at, "judge_signal": JUDGE_SIGNAL,
+                                        "exit_at": exit_at, "judge_signal": JUDGE_SIGNAL, "bank": BANK,
                                         "reject_waiting": REJECT_WAITING, "admit_rate": ADMIT_RATE,
                                         "admit_burst": ADMIT_BURST, "reset": True})
     before = gw("GET", "/v1/stats")

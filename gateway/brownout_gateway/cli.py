@@ -28,7 +28,7 @@ def build(args: argparse.Namespace) -> tuple[Gateway, str | None]:
     controller = Controller(monitor, policy=args.policy, notice=args.notice, predictor=args.predictor,
                             mode=args.cut, buckets=buckets,
                             min_left=args.min_left, max_frac=args.max_frac, active_at=args.active_at,
-                            exit_at=args.exit_at)
+                            exit_at=args.exit_at, bank=args.bank)
     gw = Gateway(args.upstream, clf, controller, monitor, upstream_key=key, client_key=key, log_path=args.log,
                  reject_waiting=args.reject_waiting, defer_timeout=args.defer_timeout,
                  admit_rate=args.admit_rate, admit_burst=args.admit_burst,
@@ -61,6 +61,8 @@ def cli(argv: list[str] | None = None) -> None:
     ap.add_argument("--judge-signal", choices=("settled", "done", "mean"), default="settled",
                     help="settled: which of Jev's answers is P(settled)")
     ap.add_argument("--judge-always", action="store_true", help="judge in every policy (logged; only settled cuts use it)")
+    ap.add_argument("--bank", action="store_true",
+                    help="ranked/settled: keep finished requests' shed credit in a bank (sheds less under sustained pressure)")
     ap.add_argument("--exit-at", type=float, default=None,
                     help="settled: under pressure, cut a request outright once P(settled) reaches this")
     ap.add_argument("--labels", choices=("length", "needed"), default="length",

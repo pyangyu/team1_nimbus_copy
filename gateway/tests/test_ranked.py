@@ -179,7 +179,7 @@ def test_admin_rejects_a_bad_cut_mode(run):
 
 
 def test_ranked_keeps_credit_from_finished_requests():
-    ctl = Controller(PressureMonitor(), policy="brownout", mode="ranked", interval=1)
+    ctl = Controller(PressureMonitor(), policy="brownout", mode="ranked", interval=1, bank=True)
     ctl.monitor.set(5, 10)
     done = ctl.start(Active("done", 1000, 1000, "normal", 1000))
     done.set_probs(onehot(2), "test")
@@ -202,3 +202,19 @@ def test_admin_sets_the_shed_cap(run):
     assert run(c.post("/admin/policy", json={"policy": "uniform", "max_frac": 0.5})).status_code == 200
     assert gw.controller.max_frac == 0.5 and gw.stats()["controller"]["max_frac"] == 0.5
     assert run(c.post("/admin/policy", json={"policy": "uniform", "max_frac": 1.5})).status_code == 400
+
+
+def test_without_the_bank_a_finished_request_leaves_the_ledger():
+    ctl = Controller(PressureMonitor(), policy="brownout", mode="ranked", interval=1)
+    ctl.monitor.set(5, 10)
+    done = ctl.start(Active("done", 1000, 1000, "normal", 1000))
+    done.set_probs(onehot(2), "test")
+    busy = ctl.start(Active("busy", 1000, 1000, "normal", 1000))
+    busy.set_probs(onehot(6), "test")
+    ctl.tick()
+    assert done.limit == 256 and busy.limit == 744
+    done.used = 256
+    ctl.finish(done)
+    assert ctl.bank == 0.0 and ctl.stats()["use_bank"] is False
+    ctl.tick()
+    assert busy.limit == 500, "busy now carries the whole proportional share on its own"
