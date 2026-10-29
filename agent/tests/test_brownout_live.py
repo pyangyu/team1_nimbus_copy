@@ -60,6 +60,7 @@ MAX_FRAC = float(os.environ.get("BROWNOUT_MAX_FRAC", "0.9"))
 JUDGE_SIGNAL = os.environ.get("BROWNOUT_JUDGE_SIGNAL", "settled")
 BANK = os.environ.get("BROWNOUT_BANK", "0") == "1"
 LOADGEN_ARGS = shlex.split(os.environ.get("BROWNOUT_LOADGEN_ARGS", ""))  # e.g. --arrivals burstgpt
+HARD_LOADGEN_ARGS = shlex.split(os.environ.get("BROWNOUT_HARD_LOADGEN_ARGS", os.environ.get("BROWNOUT_LOADGEN_ARGS", "")))
 COUNTERS = ("think", "rejected", "deferred", "cut", "announced", "upstream_errors", "serial_waits", "serial_wait_s",
             "oracle_hits", "oracle_misses")
 COLUMNS = ("dataset", "policy", "seed", "max_frac", "exit_at", "n", "accuracy", "deadline_met", "correct_and_on_time", "admitted_correct_and_on_time",
@@ -152,7 +153,8 @@ def test_policy_under_load(dataset, spec, seed):
     out.mkdir(parents=True, exist_ok=True)
     p = subprocess.run([sys.executable, "-m", "math_agent.loadgen", "--dataset", dataset, "--rate", str(rate),
                         "--n", str(n), "--budget", str(sw["budget"]), "--max-budget", str(sw["max_budget"]),
-                        "--default-solo-s", str(sw["solo_s"]), "--seed", str(seed), "--out", str(out), *LOADGEN_ARGS],
+                        "--default-solo-s", str(sw["solo_s"]), "--seed", str(seed), "--out", str(out),
+                        *(HARD_LOADGEN_ARGS if dataset == HARD_DATASET else LOADGEN_ARGS)],
                        capture_output=True, text=True, timeout=3600)
     (out / "loadgen.log").write_text(p.stdout + p.stderr)
     assert p.returncode == 0, p.stderr[-2000:]
