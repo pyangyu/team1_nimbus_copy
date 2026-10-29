@@ -112,6 +112,7 @@ Accuracy (%) pooled over the five contests, 25% / 10% of the natural thinking le
 | Qwen3-4B | countdown notice | 31.8 | 28.1 | 0.55 / 0.53 | 82% |
 | GRPO round 1 | silent | 45.1 | 36.3 | 0.75 / 0.60 | |
 | GRPO round 1 | countdown notice | 47.1 | 38.6 | 0.67 / 0.59 | 60% |
+| GRPO round 2 | silent | 45.1 | 36.2 | 0.75 / 0.60 | |
 | GRPO round 2 | countdown notice | 47.0 | 40.0 | 0.62 / 0.57 | 79% |
 
 Paired differences in percentage points, 95% CI bootstrapped over problems (`results/round2/pooled.txt`, made
