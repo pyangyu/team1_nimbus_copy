@@ -14,7 +14,7 @@ CUTTING = ("uniform", "brownout")
 NOTICES = ("silent", "announced")
 PREDICTORS = ("jev", "jev-serial", "online", "oracle")
 JEV_PREDICTORS = ("jev", "jev-serial")
-MODES = ("proportional", "ranked")
+MODES = ("proportional", "ranked", "settled")
 
 
 @dataclass
@@ -32,6 +32,9 @@ class Active:
     jev_tier: str | None = None
     probs: list[float] | None = None
     probs_source: str = "none"
+    settled: float | None = None  # the judge's latest P(answer already settled), from the thinking so far
+    judged_at: int | None = None
+    judgments: int = 0
 
     def set_priority(self, level: str, source: str) -> None:
         self.priority, self.priority_source = level, source
@@ -48,19 +51,25 @@ class Controller:
     ranked: the same total number of tokens is taken away, but from the requests where it is expected to
     cost least. Each request carries a distribution over the thinking budget it needs (from the predictor);
     the tokens in bucket k cost p_k x (fraction of the bucket removed), and the cheapest slices go first.
+    settled: ranked, with the judge's verdict on the thinking so far: a request judged settled with
+    probability s has its remaining thinking cost (1 - s) of the prompt-level price, so settled requests are
+    cut first, down to what they have used. With exit_at set, a request at or above it is cut there outright.
     """
 
     def __init__(self, monitor: PressureMonitor, *, policy: str = "brownout", notice: str = "silent",
                  predictor: str = "jev", mode: str = "proportional", buckets: Buckets | None = None,
-                 min_left: int = 64, max_frac: float = 0.9, active_at: float = 0.05, interval: float = 0.25):
+                 min_left: int = 64, max_frac: float = 0.9, active_at: float = 0.05, interval: float = 0.25,
+                 exit_at: float | None = None):
         self.monitor = monitor
+        self.exit_at = exit_at
         self.buckets = buckets or Buckets()
         self.set_policy(policy, notice, predictor, mode)
         self.min_left, self.max_frac, self.active_at, self.interval = min_left, max_frac, active_at, interval
         self.active: dict[str, Active] = {}
         self.cuts = 0
         self.bank = 0.0
-        self.ranked = {"cuts_with_probs": 0, "cuts_flat": 0, "ticks": 0, "shed_tokens": 0}
+        self.ranked = {"cuts_with_probs": 0, "cuts_flat": 0, "ticks": 0, "shed_tokens": 0, "settled_cuts": 0,
+                       "exits": 0}
 
     def set_policy(self, policy: str, notice: str | None = None, predictor: str | None = None,
                    mode: str | None = None) -> None:
@@ -86,7 +95,11 @@ class Controller:
 
     @property
     def ranking(self) -> bool:
-        return self.policy == "brownout" and self.mode == "ranked"
+        return self.policy == "brownout" and self.mode in ("ranked", "settled")
+
+    @property
+    def judging(self) -> bool:
+        return self.policy == "brownout" and self.mode == "settled"
 
     def base(self, a: Active) -> int:
         return a.requested if self.policy == "uniform" or self.ranking else min(a.requested, a.tier_budget)
@@ -143,8 +156,14 @@ class Controller:
         mass = sum(p[i] for i in range(n) if alive[i]) if p is not None else 0.0
         if p is None or mass <= 1e-9:
             share = 1.0 / sum(alive)
-            return [share if alive[i] else 0.0 for i in range(n)]
-        return [p[i] / mass if alive[i] else 0.0 for i in range(n)]
+            cond = [share if alive[i] else 0.0 for i in range(n)]
+        else:
+            cond = [p[i] / mass if alive[i] else 0.0 for i in range(n)]
+        if self.judging and a.settled is not None:
+            # what the judge says is already settled costs nothing to cut; the rest keeps its price
+            keep = 1.0 - min(max(a.settled, 0.0), 1.0)
+            cond = [v * keep for v in cond]
+        return cond
 
     def _slice(self, a: Active, cond: list[float], k: int, cur: int) -> tuple[float, int, int, int] | None:
         """The topmost removable slice at or below bucket k, as (density, k, lo, hi), or None."""
@@ -196,6 +215,14 @@ class Controller:
         if self.ranking:
             self.ranked["ticks"] += 1
             targets = self.rank_targets()
+            if self.judging and self.exit_at is not None:
+                for a in self.active.values():
+                    if a.settled is not None and a.settled >= self.exit_at:
+                        floor = a.used + self.min_left
+                        if floor < min(a.limit, targets.get(a.rid, a.limit)):
+                            targets[a.rid] = floor
+                            if a.cut_from is None:
+                                self.ranked["exits"] += 1
         else:
             targets = {a.rid: self.target(a) for a in self.active.values()}
         for rid, t in targets.items():
@@ -207,6 +234,8 @@ class Controller:
                 self.cuts += 1
                 if self.ranking:
                     self.ranked["cuts_with_probs" if a.probs is not None else "cuts_flat"] += 1
+                    if a.settled is not None and a.settled >= 0.5:
+                        self.ranked["settled_cuts"] += 1
             if self.ranking:
                 self.ranked["shed_tokens"] += a.limit - t
             a.limit = t
@@ -219,4 +248,4 @@ class Controller:
     def stats(self) -> dict:
         return {"policy": self.policy, "notice": self.notice, "predictor": self.predictor, "mode": self.mode,
                 "cutting": self.cutting, "in_flight": len(self.active), "cuts": self.cuts, "max_frac": self.max_frac,
-                "ranked": {**self.ranked, "bank": round(self.bank, 1)}}
+                "exit_at": self.exit_at, "ranked": {**self.ranked, "bank": round(self.bank, 1)}}

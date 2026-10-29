@@ -31,7 +31,8 @@ HARD_SPECS = os.environ.get("BROWNOUT_HARD_POLICIES", ",".join([
     "brownout:announced:online",
     "brownout:announced:oracle",
 ])).split(",")
-# a spec is policy[:notice[:predictor[:cut]]]; cut = proportional (default) or ranked.
+# a spec is policy[:notice[:predictor[:cut]]][:f<frac>][:e<exit>]; cut = proportional (default), ranked or
+# settled (Jev re-asked mid-decode); f caps the shed fraction, e sets the settled exit threshold.
 # BROWNOUT_POLICIES=skip runs no sweep on the first dataset.
 SPECS = [s for s in SPECS if s and s != "skip"]
 HARD_SPECS = [s for s in HARD_SPECS if s and s != "skip"]
@@ -53,14 +54,16 @@ REJECT_WAITING = float(os.environ.get("BROWNOUT_REJECT_WAITING", "2"))
 ADMIT_RATE = float(os.environ.get("BROWNOUT_ADMIT_RATE", "0.25"))
 ADMIT_BURST = float(os.environ.get("BROWNOUT_ADMIT_BURST", "8"))
 MAX_FRAC = float(os.environ.get("BROWNOUT_MAX_FRAC", "0.9"))
+JUDGE_SIGNAL = os.environ.get("BROWNOUT_JUDGE_SIGNAL", "settled")
 COUNTERS = ("think", "rejected", "deferred", "cut", "announced", "upstream_errors", "serial_waits", "serial_wait_s",
             "oracle_hits", "oracle_misses")
-COLUMNS = ("dataset", "policy", "seed", "max_frac", "n", "accuracy", "deadline_met", "correct_and_on_time", "admitted_correct_and_on_time",
+COLUMNS = ("dataset", "policy", "seed", "max_frac", "exit_at", "n", "accuracy", "deadline_met", "correct_and_on_time", "admitted_correct_and_on_time",
            "rejected_workflows",
            "latency_p50_s", "latency_p90_s", "thinking_tokens_mean", "think", "cut", "announced",
            "rejected", "pressured_samples", "jev_before_first_token", "jev_during_decode", "jev_tier_lowered",
            "jev_mean_wait_s", "jev_mean_call_s", "jev_failure_rate", "serial_wait_mean_s", "oracle_hit_rate",
            "cut_mode", "ranked_cuts_with_probs", "ranked_cuts_flat", "ranked_shed_tokens",
+           "settled_cuts", "exits", "judged", "judge_mean_ms", "judge_mean_settled",
            "probe_labeled", "probe_probes", "probe_needed_below_used", "probe_errors",
            "paired_n", "online_exact", "jev_exact",
            "online_within_one", "jev_within_one", "online_under", "jev_under")
@@ -123,15 +126,20 @@ def test_policy_under_load(dataset, spec, seed):
     sw = SWEEPS[dataset]
     n, rate = sw["n"], sw["rate"]
     parts = spec.split(":")
-    # an optional trailing f<frac> caps the shed fraction for this run (default BROWNOUT_MAX_FRAC)
-    max_frac = MAX_FRAC
-    if parts and parts[-1].startswith("f") and parts[-1][1:].replace(".", "", 1).isdigit():
-        max_frac = float(parts.pop()[1:])
+    # optional trailing f<frac> (shed cap, default BROWNOUT_MAX_FRAC) and e<exit> (settled exit threshold)
+    max_frac, exit_at = MAX_FRAC, None
+    while parts and parts[-1][:1] in ("f", "e") and parts[-1][1:].replace(".", "", 1).isdigit():
+        tok = parts.pop()
+        if tok[0] == "f":
+            max_frac = float(tok[1:])
+        else:
+            exit_at = float(tok[1:])
     policy, notice, predictor, mode = (parts + ["", "", ""])[:4]
     if predictor == "jev-learn" and "learner" not in gw("GET", "/v1/stats")["jev"]:
         pytest.skip("trained Jev: the online Jev learner is not deployed yet")
     gw("POST", "/admin/policy", json={"policy": policy, "notice": notice or "silent", "predictor": predictor or "jev",
                                         "cut": mode or "proportional", "max_frac": max_frac,
+                                        "exit_at": exit_at, "judge_signal": JUDGE_SIGNAL,
                                         "reject_waiting": REJECT_WAITING, "admit_rate": ADMIT_RATE,
                                         "admit_burst": ADMIT_BURST, "reset": True})
     before = gw("GET", "/v1/stats")
@@ -149,7 +157,8 @@ def test_policy_under_load(dataset, spec, seed):
     j = {k: after["jev"][k] - before["jev"][k] for k in JEV_COUNTERS}
     hist = [a - b for a, b in zip(after["pressure"]["p_hist_deciles"], before["pressure"]["p_hist_deciles"])]
     oracle = d["oracle_hits"] + d["oracle_misses"]
-    row = {"dataset": dataset, "policy": spec, "seed": seed, "max_frac": max_frac,
+    jd = {k: after["judge"][k] - before["judge"][k] for k in ("answered", "call_ms", "settled_sum")}
+    row = {"dataset": dataset, "policy": spec, "seed": seed, "max_frac": max_frac, "exit_at": exit_at,
            **{k: s.get(k) for k in COLUMNS if k in s},
            "rejected_workflows": s.get("rejected"),
            **d, "pressured_samples": sum(hist[1:]), "observed": observed(after) - observed(before),
@@ -162,6 +171,10 @@ def test_policy_under_load(dataset, spec, seed):
            "cut_mode": after["controller"]["mode"],
            **{f"ranked_{k}": after["controller"]["ranked"][k] - before["controller"]["ranked"][k]
               for k in ("cuts_with_probs", "cuts_flat", "shed_tokens")},
+           **{k: after["controller"]["ranked"][k] - before["controller"]["ranked"][k] for k in ("settled_cuts", "exits")},
+           "judged": jd["answered"],
+           "judge_mean_ms": round(jd["call_ms"] / jd["answered"], 1) if jd["answered"] else None,
+           "judge_mean_settled": round(jd["settled_sum"] / jd["answered"], 3) if jd["answered"] else None,
            **{f"probe_{k}": after["probe"][k] - before["probe"][k]
               for k in ("labeled", "probes", "needed_below_used", "errors")},
            **compare(before, after)}
@@ -185,8 +198,10 @@ def test_policy_under_load(dataset, spec, seed):
         assert d["serial_waits"] == d["think"] and row["jev_before_first_token"] > 0
     if predictor == "oracle":
         assert d["oracle_hits"] > 0
-    if mode == "ranked" and d["cut"] + d["announced"] > 0:
+    if mode in ("ranked", "settled") and d["cut"] + d["announced"] > 0:
         assert row["ranked_cuts_with_probs"] + row["ranked_cuts_flat"] > 0
+    if mode == "settled":
+        assert row["judged"] > 0 and after["judge"]["failed"] - before["judge"]["failed"] < 0.1 * row["judged"] + 1
     if after["gateway"]["labels"] == "needed" and policy == "none":
         assert row["probe_labeled"] > 0 and row["probe_errors"] == 0
 

@@ -27,12 +27,15 @@ def build(args: argparse.Namespace) -> tuple[Gateway, str | None]:
     monitor = PressureMonitor(metrics_url, interval=args.poll, http=http)
     controller = Controller(monitor, policy=args.policy, notice=args.notice, predictor=args.predictor,
                             mode=args.cut, buckets=buckets,
-                            min_left=args.min_left, max_frac=args.max_frac, active_at=args.active_at)
+                            min_left=args.min_left, max_frac=args.max_frac, active_at=args.active_at,
+                            exit_at=args.exit_at)
     gw = Gateway(args.upstream, clf, controller, monitor, upstream_key=key, client_key=key, log_path=args.log,
                  reject_waiting=args.reject_waiting, defer_timeout=args.defer_timeout,
                  admit_rate=args.admit_rate, admit_burst=args.admit_burst,
                  notice_text=args.notice_text, serial_timeout=args.serial_timeout, http=http,
-                 labels=args.labels, probe_concurrency=args.probe_concurrency, probe_edges=args.probe_edges)
+                 labels=args.labels, probe_concurrency=args.probe_concurrency, probe_edges=args.probe_edges,
+                 judge_from=args.judge_from, judge_every=args.judge_every, judge_signal=args.judge_signal,
+                 judge_always=args.judge_always)
     return gw, args.state
 
 
@@ -50,8 +53,16 @@ def cli(argv: list[str] | None = None) -> None:
                          "the online word model (comparison), or oracle (the thinking length this prompt used "
                          "in an earlier uncut run)")
     ap.add_argument("--cut", choices=MODES, default="proportional",
-                    help="how brownout spreads a cut: the same fraction for every running request, or ranked "
-                         "(the same total, taken first from the requests whose predicted need is already met)")
+                    help="how brownout spreads a cut: the same fraction for every running request, ranked "
+                         "(the same total, taken first from the requests whose predicted need is already met), "
+                         "or settled (ranked, with Jev re-asked mid-decode whether each request's answer is settled)")
+    ap.add_argument("--judge-from", type=int, default=256, help="settled: first judgment after this many thinking tokens")
+    ap.add_argument("--judge-every", type=int, default=512, help="settled: judge again every this many tokens")
+    ap.add_argument("--judge-signal", choices=("settled", "done", "mean"), default="settled",
+                    help="settled: which of Jev's answers is P(settled)")
+    ap.add_argument("--judge-always", action="store_true", help="judge in every policy (logged; only settled cuts use it)")
+    ap.add_argument("--exit-at", type=float, default=None,
+                    help="settled: under pressure, cut a request outright once P(settled) reaches this")
     ap.add_argument("--labels", choices=("length", "needed"), default="length",
                     help="what a finished request teaches: the thinking length it used, or the smallest "
                          "budget at which its answer was already the same (found by probing the thinking)")

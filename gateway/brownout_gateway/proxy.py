@@ -20,6 +20,7 @@ from budget_classifier import BudgetClassifier
 
 from .controller import Active, Controller
 from .jevq import JevScheduler
+from .judge import JudgeScheduler
 from .pressure import PressureMonitor
 from .priority import heuristic
 from .prober import ProbeJob, Prober
@@ -39,7 +40,9 @@ class Gateway:
                  admit_rate: float = 0.25, admit_burst: float = 8, clock=time.monotonic,
                  notice_text: str = DEFAULT_NOTICE, serial_timeout: float = 10.0,
                  http: httpx.AsyncClient | None = None, labels: str = "length",
-                 probe_concurrency: int = 2, probe_edges: int = 3):
+                 probe_concurrency: int = 2, probe_edges: int = 3,
+                 judge_from: int = 256, judge_every: int = 512, judge_signal: str = "settled",
+                 judge_always: bool = False):
         if labels not in ("length", "needed"):
             raise ValueError("labels must be 'length' or 'needed'")
         self.upstream = upstream.rstrip("/")
@@ -47,6 +50,8 @@ class Gateway:
         self.jevq = JevScheduler(clf, controller, concurrency=clf.jev.max_inflight if clf.jev else 1)
         self.labels = labels
         self.prober = Prober(self, concurrency=probe_concurrency, max_edges=probe_edges, enabled=labels == "needed")
+        self.judge = JudgeScheduler(self, concurrency=clf.jev.max_inflight if clf.jev else 1, signal=judge_signal)
+        self.judge_from, self.judge_every, self.judge_always = judge_from, judge_every, judge_always
         self.upstream_key, self.client_key = upstream_key, client_key
         self.reject_waiting, self.defer_timeout, self.defer_poll = reject_waiting, defer_timeout, defer_poll
         self.notice_text, self.serial_timeout = notice_text, serial_timeout
@@ -198,6 +203,7 @@ class Gateway:
         marks: dict[int, int] = {}  # bucket edge (tokens) -> characters of thinking streamed when it was crossed
         nchars = 0
         edges = self.clf.buckets.edges[1:]
+        next_judge = self.judge_from
         try:
             while True:
                 action, left = None, 0
@@ -228,6 +234,9 @@ class Gateway:
                         for e in edges:
                             if e <= a.used and e not in marks:
                                 marks[e] = nchars
+                        if a.used >= next_judge and self.judging:
+                            next_judge = a.used + self.judge_every
+                            self.judge.submit(a, up["prompt"], "".join(parts), a.used)
                         yield sse({"object": "text_completion", "model": up.get("model"),
                                    "choices": [{"index": 0, "text": text, "finish_reason": None}]})
                     if a.limit < cap and finish is None:
@@ -262,7 +271,8 @@ class Gateway:
                     "predictor": self.controller.predictor, "priority": a.priority,
                     "priority_source": a.priority_source,
                     "budget": meta["first_limit"], "limit": a.limit, "cut": cut or announced,
-                    "cut_from": a.cut_from, "announced": announced, "policy": self.controller.policy}
+                    "cut_from": a.cut_from, "announced": announced, "policy": self.controller.policy,
+                    "settled": a.settled, "judged_at": a.judged_at, "judgments": a.judgments}
             yield sse({"object": "text_completion", "choices": [{"index": 0, "text": "", "finish_reason": finish}]})
             yield sse({"object": "text_completion", "choices": [],
                        "usage": {"prompt_tokens": prompt_tokens or 0, "completion_tokens": a.used,
@@ -295,9 +305,15 @@ class Gateway:
                        "notice": self.controller.notice, "observed": obs.get("label"),
                        "tier": a.tier, "tier_budget": a.tier_budget, "jev_tier": a.jev_tier, "jev_at": a.jev_at,
                        "predictor": self.controller.predictor, "mode": self.controller.mode,
-                       "probs_source": a.probs_source, "probs": a.probs}
+                       "probs_source": a.probs_source, "probs": a.probs,
+                       "settled": a.settled, "judged_at": a.judged_at, "judgments": a.judgments}
                 self.log.write(json.dumps(row) + "\n")
                 self.log.flush()
+
+    @property
+    def judging(self) -> bool:
+        """Judge the thinking so far: in the settled cut mode, or always when asked (for the log)."""
+        return self.judge.enabled and (self.judge_always or self.controller.judging)
 
     async def models(self, request: Request) -> Response:
         if not self.authorized(request):
@@ -319,6 +335,17 @@ class Gateway:
             if not 0 < f <= 1:
                 return JSONResponse({"error": "max_frac must be in (0, 1]"}, status_code=400)
             self.controller.max_frac = f
+        if "exit_at" in body:
+            e = body["exit_at"]
+            if e is not None and not 0 < float(e) <= 1:
+                return JSONResponse({"error": "exit_at must be in (0, 1] or null"}, status_code=400)
+            self.controller.exit_at = None if e is None else float(e)
+        if "judge_signal" in body:
+            try:
+                JudgeScheduler(self, signal=body["judge_signal"])
+            except ValueError as e:
+                return JSONResponse({"error": str(e)}, status_code=400)
+            self.judge.signal = body["judge_signal"]
         if "reject_waiting" in body:
             self.reject_waiting = float(body["reject_waiting"])
         if "admit_rate" in body:
@@ -339,7 +366,8 @@ class Gateway:
                             "reject_waiting": self.reject_waiting, "admit_rate": self.admit_rate,
                             "admit_burst": self.admit_burst},
                 "controller": self.controller.stats(), "pressure": self.monitor.stats(),
-                "jev": self.jevq.stats(), "probe": self.prober.stats(), "classifier": self.clf.stats()}
+                "jev": self.jevq.stats(), "probe": self.prober.stats(), "judge": self.judge.stats(),
+                "classifier": self.clf.stats()}
 
 
 def create_app(gw: Gateway, *, state_path: str | Path | None = None, background: bool = True) -> Starlette:
