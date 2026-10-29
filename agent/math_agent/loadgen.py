@@ -107,7 +107,8 @@ async def main(args) -> None:
         wcfg = cfg
         if src in budgets:
             b = budgets[src]
-            wcfg = dataclasses.replace(cfg, think_budget=b, max_budget=max(b, int(b * cfg.max_budget / max(cfg.think_budget, 1))))
+            # retries grow the budget by the sweep's ratio but never past the sweep's own max budget (the context window)
+            wcfg = dataclasses.replace(cfg, think_budget=b, max_budget=max(b, min(int(b * cfg.max_budget / max(cfg.think_budget, 1)), cfg.max_budget)))
         r = await run_workflow(ex, llm, wcfg, workflow_id=f"w{i:05d}", arrival=arrival,
                                deadline=deadline, on_call=lambda c: calls.write(c.record()))
         rec = {**r.record(), "slack": slack, "source": src, "budget": wcfg.think_budget}
