@@ -2,7 +2,8 @@
 # Run the math agent through the Brownout gateway on AWS: bundle the commit, start the boxes, set up Open-Jev,
 # deploy, sweep the policies, collect results into ./brownout-results (relative to the caller's directory).
 # Usage: infra/brownout/e2e.sh [git-ref]    BROWNOUT_STOP=1 stops the boxes this run started.
-# BROWNOUT_HARD_DATASET= (empty) runs the GSM8K sweep only. BROWNOUT_SUITE=realistic runs the capacity + rate-profile suite,
+# BROWNOUT_HARD_DATASET= (empty) runs the GSM8K sweep only. BROWNOUT_SUITE=realistic runs the capacity + rate-profile suite
+# (BROWNOUT_TRACE=burstgpt replays BurstGPT arrivals instead of the profile),
 # without Jev, with a second vLLM replica on the Jev box's GPU (BROWNOUT_LLM_ON_JEV=0 keeps one).
 set -euo pipefail
 CALLER=$PWD
@@ -51,6 +52,7 @@ if [[ "${BROWNOUT_SUITE:-default}" == realistic ]]; then
   profile_s=0
   IFS=, read -ra segs <<< "${BROWNOUT_PROFILE:-180:0.7,120:1.2,180:0.7,180:1.5,240:0.7,120:2.0,180:0.7,240:1.2,300:0.7}"
   for s in "${segs[@]}"; do d=${s%%:*}; profile_s=$((profile_s + ${d%.*})); done
+  [[ -z "${BROWNOUT_TRACE:-}" ]] || { t=${BROWNOUT_TRACE_S:-1800}; profile_s=${t%.*}; }
   IFS=, read -ra pols <<< "${BROWNOUT_POLICIES:-none,uniform,brownout:silent:online,brownout:announced:online}"
   tail_s=${BROWNOUT_TAIL_S:-1200}
   warm_s=${BROWNOUT_CAPACITY_WARMUP_S:-180} meas_s=${BROWNOUT_CAPACITY_S:-600}

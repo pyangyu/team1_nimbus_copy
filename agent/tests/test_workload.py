@@ -6,7 +6,7 @@ import pytest
 from test_agent_e2e import PROBLEMS, agent, data_dir  # noqa: F401
 from vllm_stub import StubVLLM
 
-from math_agent import metrics, workload
+from math_agent import metrics, trace, workload
 from math_agent.datasets import Example
 from math_agent.workload import Component, Segment
 
@@ -141,3 +141,68 @@ def test_loadgen_needs_one_arrival_mode():
     assert p.returncode != 0 and "exactly one of" in p.stderr
     p = subprocess.run([sys.executable, "-m", "math_agent.loadgen", "--profile", "1:1"], capture_output=True, text=True)
     assert p.returncode != 0 and "--capacity" in p.stderr
+
+
+def burstgpt_csv(data_dir, rows):
+    d = data_dir / "burstgpt"
+    d.mkdir(parents=True, exist_ok=True)
+    lines = ["Timestamp,Model,Request tokens,Response tokens,Total tokens,Log Type"]
+    lines += [f"{t},ChatGPT,10,{a},{10 + a},{lt}" for t, a, lt in rows]
+    (d / "BurstGPT_1.csv").write_text("\n".join(lines) + "\n")
+
+
+def test_trace_replay_keeps_burst_shape_and_weaves_levels(tmp_path, monkeypatch):
+    monkeypatch.setenv("LIFELINE_DATA", str(tmp_path))
+    rows = [(t, 100 + t % 7, "Conversation log") for t in range(0, 3600, 10)]
+    rows += [(t, 900 + t % 5, "Conversation log") for t in range(1800, 2160, 2)]
+    rows += [(t, 0, "Conversation log") for t in range(5)] + [(t, 50, "API log") for t in range(0, 3600, 3)]
+    burstgpt_csv(tmp_path, sorted(rows))
+    trace.load.cache_clear()
+    reqs = trace.load("conversation")
+    assert len(reqs) == 360 + 180 and all(r.log == "Conversation log" and r.response_tokens > 0 for r in reqs)
+    pool = [Example(f"m/{lv}/{i}", "q", "1", "math", lv) for lv in (1, 3, 5) for i in range(lv * 4)]
+    kw = dict(start_h=0, window_h=1, duration_s=600, load=0.8, bin_s=60, seed=0)
+    rp = trace.replay(reqs, pool, 0.5, **kw)
+    again = trace.replay(reqs, pool, 0.5, **kw)
+    assert [e.id for e in rp.examples] == [e.id for e in again.examples] and rp.arrivals == again.arrivals
+    assert [e.id for e in trace.replay(reqs, pool, 0.5, **{**kw, "seed": 1}).examples] != [e.id for e in rp.examples]
+    assert len(rp.arrivals) == 240 and rp.window_n == 540
+    assert all(0 <= a < b < 600 for (a, _), (b, _) in zip(rp.arrivals, rp.arrivals[1:]))
+    assert all(seg == int(off // 60) for off, seg in rp.arrivals)
+    assert workload.total_s(rp.profile) == 600 and len(rp.profile) == 10
+    assert [s.phase for s in rp.profile] == ["baseline"] * 5 + ["burst"] + ["baseline"] * 4
+    assert abs(sum(s.rate * s.duration_s for s in rp.profile) / 600 - 0.8) < 0.01
+    lv = [e.level for e in rp.examples]
+    assert {k: lv.count(k) for k in (1, 3, 5)} == trace.level_quotas(pool, 240) == {1: 27, 3: 80, 5: 133}
+    by_len = sorted(zip((r.response_tokens for r in rp.requests), lv))
+    assert [l for _, l in by_len] == sorted(lv)
+    assert all(l == 5 for a, l in zip(rp.requests, lv) if a.response_tokens >= 900)
+    assert trace.spec(rp.profile).startswith("60:")
+
+
+def test_trace_replay_rejects_too_few_requests(tmp_path, monkeypatch):
+    monkeypatch.setenv("LIFELINE_DATA", str(tmp_path))
+    burstgpt_csv(tmp_path, [(t, 100, "Conversation log") for t in range(0, 3600, 60)])
+    trace.load.cache_clear()
+    pool = [Example("m/1", "q", "1", "math", 1)]
+    with pytest.raises(ValueError, match="lower the load"):
+        trace.replay(trace.load(), pool, 1.0, start_h=0, window_h=1, duration_s=600, load=1.0)
+    with pytest.raises(ValueError):
+        trace.load("nope")
+
+
+def test_loadgen_trace_mode(data_dir, tmp_path):
+    burstgpt_csv(data_dir, sorted([(t, 100 + t % 50, "Conversation log") for t in range(0, 7200, 20)]
+                                  + [(t, 700, "Conversation log") for t in range(3000, 3300, 3)]))
+    args = ("--workload", "math500:5", "--level-budgets", "--trace", "burstgpt", "--trace-start-h", "0",
+            "--trace-s", "3", "--load", "2", "--bin-s", "1", "--capacity", "1", "--tail-s", "60",
+            "--seed", "3", "--max-loops", "0")
+    with StubVLLM(PROBLEMS) as stub:
+        wfs, _, s = agent("loadgen", stub, data_dir, tmp_path / "t", *args)
+    assert s["mode"] == "trace" and s["arrivals"] == len(wfs) == 6 and s["errors"] == 0
+    assert s["trace"]["window_n"] == 460 and s["trace"]["compression"] == 2400
+    assert workload.total_s(workload.parse_profile(s["profile"])) == 3
+    assert all("trace_t" in w and w["band"] == "L5" for w in wfs)
+    p = subprocess.run([sys.executable, "-m", "math_agent.loadgen", "--trace", "burstgpt", "--capacity", "1",
+                        "--workload", "gsm8k"], capture_output=True, text=True)
+    assert p.returncode != 0 and "MATH-500" in p.stderr

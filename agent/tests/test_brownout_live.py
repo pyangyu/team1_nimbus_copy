@@ -50,6 +50,12 @@ REAL_SPECS = os.environ.get("BROWNOUT_POLICIES", ",".join([
 ])).split(",") if REALISTIC else []
 WORKLOAD = os.environ.get("BROWNOUT_WORKLOAD", workload.DEFAULT_WORKLOAD)
 PROFILE = os.environ.get("BROWNOUT_PROFILE", workload.DEFAULT_PROFILE)
+TRACE = os.environ.get("BROWNOUT_TRACE")
+TRACE_ENV = {"--trace-log": "BROWNOUT_TRACE_LOG", "--trace-start-h": "BROWNOUT_TRACE_START_H",
+             "--trace-window-h": "BROWNOUT_TRACE_WINDOW_H", "--trace-s": "BROWNOUT_TRACE_S", "--load": "BROWNOUT_LOAD"}
+TRACE_ARGS = ["--trace", TRACE] + [x for k, v in TRACE_ENV.items() if os.environ.get(v)
+                                   for x in (k, os.environ[v])] if TRACE else []
+TRACE_S = float(os.environ.get("BROWNOUT_TRACE_S", "1800"))
 SEED = int(os.environ.get("BROWNOUT_SEED", "0"))
 TAIL_S = float(os.environ.get("BROWNOUT_TAIL_S", "1200"))
 CAP_CONCURRENCY = os.environ.get("BROWNOUT_CAPACITY_CONCURRENCY")
@@ -233,10 +239,14 @@ def word_model(stats: dict) -> dict:
 
 def write_realistic() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "results.json").write_text(json.dumps({"suite": "realistic", "workload": WORKLOAD, "profile": PROFILE,
+    (OUT / "results.json").write_text(json.dumps({"suite": "realistic", "workload": WORKLOAD, "profile": None if TRACE else PROFILE,
+                                                  "trace_args": TRACE_ARGS,
                                                   "seed": SEED, "capacity": CAPACITY, "runs": RESULTS}, indent=2))
     cap = CAPACITY.get("capacity_wf_s")
-    lines = [f"Workload `{WORKLOAD}`, profile `{PROFILE}` (rates x C), seed {SEED}.", "",
+    arrivals = (f"trace `{' '.join(TRACE_ARGS)}` (profile from the trace, rates x C: `{RESULTS[0]['profile']}`)"
+                if TRACE and RESULTS else f"trace `{' '.join(TRACE_ARGS)}`" if TRACE
+                else f"profile `{PROFILE}` (rates x C)")
+    lines = [f"Workload `{WORKLOAD}`, {arrivals}, seed {SEED}.", "",
              f"Capacity C = {cap} workflows/s ({CAPACITY.get('source', 'not measured')}; "
              f"{CAPACITY.get('capacity_think_tok_s')} thinking tokens/s over {CAPACITY.get('replicas')} vLLM "
              f"replica(s), {CAPACITY.get('window_n')} workflows "
@@ -293,20 +303,23 @@ def test_realistic_policy(spec):
     if not CAPACITY.get("capacity_wf_s"):
         pytest.fail("no capacity: test_realistic_capacity failed or did not run")
     cap = CAPACITY["capacity_wf_s"]
-    profile = workload.parse_profile(PROFILE)
     if spec.split(":")[2:3] == ["jev-learn"] and "learner" not in gw("GET", "/v1/stats")["jev"]:
         pytest.skip("trained Jev: the online Jev learner is not deployed yet")
     wait_idle()
     policy = set_policy(spec)[0]
     before = gw("GET", "/v1/stats")
     out = OUT / f"realistic-{spec.replace(':', '-')}"
-    s = realistic_loadgen(out, "--profile", PROFILE, "--capacity", str(cap), "--tail-s", str(TAIL_S),
-                          timeout=workload.total_s(profile) + TAIL_S + 900)
+    arrivals = TRACE_ARGS or ["--profile", PROFILE]
+    span = TRACE_S if TRACE else workload.total_s(workload.parse_profile(PROFILE))
+    s = realistic_loadgen(out, *arrivals, "--capacity", str(cap), "--tail-s", str(TAIL_S),
+                          timeout=span + TAIL_S + 900)
+    profile = workload.parse_profile(s["profile"])
     after = gw("GET", "/v1/stats")
     ps = pressure_of(pressure_since(s["t0"], out), lambda t: workload.phase_at(profile, t - s["t0"]))
     d = {k: after["gateway"][k] - before["gateway"][k] for k in COUNTERS}
     ph = s.get("by_phase", {})
-    row = {"policy": spec, "workload": WORKLOAD, "capacity_wf_s": cap,
+    row = {"policy": spec, "workload": WORKLOAD, "capacity_wf_s": cap, "profile": s["profile"],
+           "trace": s.get("trace"),
            **{k: s.get(k) for k in ("n", "accuracy", "deadline_met", "correct_and_on_time", "cancelled",
                                      "latency_p50_s", "latency_p95_s", "thinking_tokens_mean", "wall_s")},
            **{f"goodput_{k}": v.get("correct_and_on_time") for k, v in ph.items()},

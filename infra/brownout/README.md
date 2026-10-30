@@ -118,6 +118,15 @@ It runs only `agent/tests/test_brownout_live.py` (not `test_live.py`):
    cancelled and counted as wrong and late. The classifier is reset before each run, and each
    run waits until vLLM has no running or waiting requests.
 
+`BROWNOUT_TRACE=burstgpt` replaces the rate profile with real arrivals: a two-hour window of the
+BurstGPT trace (Azure ChatGPT and GPT-4 traffic, KDD 25; human conversation log by default) is compressed into
+`BROWNOUT_TRACE_S` and thinned at random to a mean rate of `BROWNOUT_LOAD` x C, so the trace's bursts keep their
+shape. The agent box downloads `BurstGPT_1.csv` (50 MB) from the BurstGPT GitHub repo once. Each kept request
+becomes a MATH-500 problem by rank: the trace's longest responses get the hardest levels, in MATH-500's level mix,
+so a burst brings the problems its requests would have. Segments and the baseline/burst phases come from the whole
+window in 120 s bins (a bin above C is a burst), and the derived profile is written to `summary.json` and
+`results.md`. See `agent/math_agent/trace.py` for why the default window was chosen.
+
 The client thinking budget is set per problem (`loadgen --level-budgets`): MATH levels 1-2 ask
 for 2048 (up to 4096 on a retry), level 3 for 4096 (up to 6144), levels 4-5 for 6144; GSM8K
 1024 (up to 2048). The solo latency used for deadlines is 150 s, 300 s and 450 s for those
@@ -128,6 +137,11 @@ MATH bands and 90 s for GSM8K.
 | `BROWNOUT_SUITE` | `default` (the sweeps above); `realistic` runs this suite |
 | `BROWNOUT_WORKLOAD` | `math500:1-5`. Format `dataset[:levels][=weight],...`, e.g. `math500:4-5` or `gsm8k=0.5,math500:4-5=0.5` |
 | `BROWNOUT_PROFILE` | `180:0.7,120:1.2,180:0.7,180:1.5,240:0.7,120:2.0,180:0.7,240:1.2,300:0.7` (29 min; rate > 1 is a burst) |
+| `BROWNOUT_TRACE` | unset (use the profile); `burstgpt` replays BurstGPT arrivals |
+| `BROWNOUT_TRACE_LOG` | `conversation` (`api` or `all` add the batch API traffic, whose spikes reach 4000x its median hour) |
+| `BROWNOUT_TRACE_START_H`, `BROWNOUT_TRACE_WINDOW_H` | `520.5`, `2` (hours from the start of the trace) |
+| `BROWNOUT_TRACE_S` | `1800` (the window is replayed in this many seconds) |
+| `BROWNOUT_LOAD` | `0.9` (mean arrival rate in units of C; the default window peaks at 1.9 C) |
 | `BROWNOUT_POLICIES` | `none,uniform,brownout:silent:online,brownout:announced:online` |
 | `BROWNOUT_JEV` | `0` in this suite, `1` otherwise (`1` deploys Open-Jev and passes `--jev-url` to the gateway) |
 | `BROWNOUT_LLM_ON_JEV` | `1` in this suite (second vLLM replica on the Jev box; needs `BROWNOUT_JEV=0`), `0` otherwise |
