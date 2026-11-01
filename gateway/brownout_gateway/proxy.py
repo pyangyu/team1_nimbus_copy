@@ -25,6 +25,9 @@ from .priority import heuristic
 from .routing import Replica, Router
 
 DEFAULT_NOTICE = "\n\n<budget_cut left={N}>\n"
+NOTICE_TEXTS = {"tag": DEFAULT_NOTICE,
+                "countdown": "\n\nI only have about {N} tokens of thinking left, so I must finish my reasoning "
+                             "quickly and move to the final answer.\n"}
 
 
 def sse(ev: dict | str) -> str:

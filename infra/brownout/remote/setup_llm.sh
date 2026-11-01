@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-IMAGE=$1 MODEL=$2 MAX_MODEL_LEN=$3
+IMAGE=$1 MODEL=$2 MAX_MODEL_LEN=$3 LORA=${4:-}
 need_tools
 for unit in $(systemctl list-units --all --plain --no-legend 'open-jev@*' | awk '{print $1}'); do
   systemctl disable --now "$unit" >/dev/null 2>&1 || true
@@ -15,6 +15,16 @@ umask 077
 echo "LIFELINE_API_KEY=$(api_key)" > /etc/brownout-vllm.env
 umask 022
 mkdir -p /opt/hf
+LORA_ARGS=""
+rm -rf /opt/lora && mkdir -p /opt/lora
+if [[ -n "$LORA" ]]; then
+  name=${LORA%%=*} key=${LORA#*=}
+  aws s3 cp --region "$REGION" --quiet "s3://$BUCKET/$key" /tmp/lora.tgz
+  mkdir -p "/opt/lora/$name" && tar xzf /tmp/lora.tgz -C "/opt/lora/$name" --strip-components 1
+  rank=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["r"])' "/opt/lora/$name/adapter_config.json")
+  LORA_ARGS="--enable-lora --max-loras 1 --max-lora-rank $rank --lora-modules $name=/lora/$name"
+  echo "LoRA $name (rank $rank) from s3://$BUCKET/$key"
+fi
 cat > /etc/systemd/system/vllm.service <<UNIT
 [Unit]
 After=docker.service
@@ -24,9 +34,9 @@ EnvironmentFile=/etc/brownout-vllm.env
 Restart=always
 ExecStartPre=-/usr/bin/docker rm -f vllm
 ExecStart=/usr/bin/docker run --name vllm --gpus all --ipc=host -p 8000:8000 \
-  -e HF_HUB_DISABLE_XET=1 -v /opt/hf:/root/.cache/huggingface $IMAGE \
+  -e HF_HUB_DISABLE_XET=1 -v /opt/hf:/root/.cache/huggingface -v /opt/lora:/lora:ro $IMAGE \
   --model $MODEL --max-model-len $MAX_MODEL_LEN --gpu-memory-utilization 0.92 \
-  --api-key \${LIFELINE_API_KEY} --enable-prefix-caching
+  --api-key \${LIFELINE_API_KEY} --enable-prefix-caching $LORA_ARGS
 [Install]
 WantedBy=multi-user.target
 UNIT
@@ -41,4 +51,4 @@ if ! wait_http http://127.0.0.1:8000/v1/models 180 "$KEY"; then
 fi
 nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader
 df -h / | tail -n 1
-echo "vLLM $MODEL ready on 127.0.0.1:8000"
+echo "vLLM $MODEL${LORA:+ + LoRA ${LORA%%=*}} ready on 127.0.0.1:8000"

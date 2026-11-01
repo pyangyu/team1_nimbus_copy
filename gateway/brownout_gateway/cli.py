@@ -10,7 +10,7 @@ from budget_classifier import BudgetClassifier, Buckets, JevPrior
 
 from .controller import NOTICES, POLICIES, PREDICTORS, Controller
 from .pressure import PressureMonitor
-from .proxy import DEFAULT_NOTICE, Gateway, create_app
+from .proxy import DEFAULT_NOTICE, NOTICE_TEXTS, Gateway, create_app
 
 
 def build(args: argparse.Namespace) -> tuple[Gateway, str | None]:
@@ -34,7 +34,7 @@ def build(args: argparse.Namespace) -> tuple[Gateway, str | None]:
     gw = Gateway(upstreams, clf, controller, monitors[0], monitors=monitors, upstream_key=key, client_key=key, log_path=args.log,
                  reject_waiting=args.reject_waiting, defer_timeout=args.defer_timeout,
                  admit_rate=args.admit_rate, admit_burst=args.admit_burst,
-                 notice_text=args.notice_text, serial_timeout=args.serial_timeout, http=http)
+                 notice_text=NOTICE_TEXTS.get(args.notice_text, args.notice_text), serial_timeout=args.serial_timeout, http=http)
     return gw, args.state
 
 
@@ -53,7 +53,9 @@ def cli(argv: list[str] | None = None) -> None:
                          "the online word model (comparison), or oracle (the thinking length this prompt used "
                          "in an earlier uncut run)")
     ap.add_argument("--serial-timeout", type=float, default=10.0, help="jev-serial: longest wait for Jev")
-    ap.add_argument("--notice-text", default=DEFAULT_NOTICE)
+    ap.add_argument("--notice-text", default=DEFAULT_NOTICE,
+                    help=f"announced: text with {{N}} for the tokens left, or a preset: {', '.join(NOTICE_TEXTS)} "
+                         "(countdown is the notice the training/ models learned)")
     ap.add_argument("--reject-waiting", type=float, default=8)
     ap.add_argument("--defer-timeout", type=float, default=60.0)
     ap.add_argument("--admit-rate", type=float, default=0.25, help="reject: new workflows per second")

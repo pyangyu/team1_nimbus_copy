@@ -127,6 +127,10 @@ so a burst brings the problems its requests would have. Segments and the baselin
 window in 120 s bins (a bin above C is a burst), and the derived profile is written to `summary.json` and
 `results.md`. See `agent/math_agent/trace.py` for why the default window was chosen.
 
+A policy can end in `@name` to send that run to model `name`, e.g. `brownout:announced:online@r2` for a LoRA
+served with `BROWNOUT_LORA=r2=...`. Both replicas are set up by `remote/setup_llm.sh` at the start of each run,
+so they always serve the same model.
+
 The client thinking budget is set per problem (`loadgen --level-budgets`): MATH levels 1-2 ask
 for 2048 (up to 4096 on a retry), level 3 for 4096 (up to 6144), levels 4-5 for 6144; GSM8K
 1024 (up to 2048). The solo latency used for deadlines is 150 s, 300 s and 450 s for those
@@ -142,6 +146,9 @@ MATH bands and 90 s for GSM8K.
 | `BROWNOUT_TRACE_START_H`, `BROWNOUT_TRACE_WINDOW_H` | `520.5`, `2` (hours from the start of the trace) |
 | `BROWNOUT_TRACE_S` | `1800` (the window is replayed in this many seconds) |
 | `BROWNOUT_LOAD` | `0.9` (mean arrival rate in units of C; the default window peaks at 1.9 C) |
+| `BROWNOUT_MODEL` | unset (`MODEL` in `../vllm-ec2/config.env`); both replicas are set up with it, and runs without `@name` ask for it |
+| `BROWNOUT_LORA` | unset; `name=ci/key.tgz` serves a LoRA tarball (one top folder with `adapter_config.json`) from the CI bucket as model `name` on both replicas |
+| `BROWNOUT_NOTICE` | unset (`<budget_cut left=N>`); `countdown` is the sentence the `training/` models learned, or any text with `{N}` |
 | `BROWNOUT_POLICIES` | `none,uniform,brownout:silent:online,brownout:announced:online` |
 | `BROWNOUT_JEV` | `0` in this suite, `1` otherwise (`1` deploys Open-Jev and passes `--jev-url` to the gateway) |
 | `BROWNOUT_LLM_ON_JEV` | `1` in this suite (second vLLM replica on the Jev box; needs `BROWNOUT_JEV=0`), `0` otherwise |

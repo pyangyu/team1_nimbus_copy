@@ -51,6 +51,7 @@ REAL_SPECS = os.environ.get("BROWNOUT_POLICIES", ",".join([
 WORKLOAD = os.environ.get("BROWNOUT_WORKLOAD", workload.DEFAULT_WORKLOAD)
 PROFILE = os.environ.get("BROWNOUT_PROFILE", workload.DEFAULT_PROFILE)
 TRACE = os.environ.get("BROWNOUT_TRACE")
+BASE_MODEL = os.environ.get("BROWNOUT_MODEL")
 TRACE_ENV = {"--trace-log": "BROWNOUT_TRACE_LOG", "--trace-start-h": "BROWNOUT_TRACE_START_H",
              "--trace-window-h": "BROWNOUT_TRACE_WINDOW_H", "--trace-s": "BROWNOUT_TRACE_S", "--load": "BROWNOUT_LOAD"}
 TRACE_ARGS = ["--trace", TRACE] + [x for k, v in TRACE_ENV.items() if os.environ.get(v)
@@ -209,7 +210,8 @@ def set_policy(spec: str) -> tuple[str, str, str]:
 def realistic_loadgen(out: Path, *args: str, timeout: float) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     p = subprocess.run([sys.executable, "-m", "math_agent.loadgen", "--workload", WORKLOAD, "--level-budgets",
-                        "--seed", str(SEED), "--out", str(out), *args],
+                        "--seed", str(SEED), "--out", str(out), *args,
+                        *(["--model", BASE_MODEL] if BASE_MODEL and "--model" not in args else [])],
                        capture_output=True, text=True, timeout=timeout)
     (out / "loadgen.log").write_text(p.stdout + p.stderr)
     assert p.returncode == 0, p.stderr[-2000:]
@@ -303,13 +305,14 @@ def test_realistic_policy(spec):
     if not CAPACITY.get("capacity_wf_s"):
         pytest.fail("no capacity: test_realistic_capacity failed or did not run")
     cap = CAPACITY["capacity_wf_s"]
+    spec, _, model = spec.partition("@")
     if spec.split(":")[2:3] == ["jev-learn"] and "learner" not in gw("GET", "/v1/stats")["jev"]:
         pytest.skip("trained Jev: the online Jev learner is not deployed yet")
     wait_idle()
     policy = set_policy(spec)[0]
     before = gw("GET", "/v1/stats")
-    out = OUT / f"realistic-{spec.replace(':', '-')}"
-    arrivals = TRACE_ARGS or ["--profile", PROFILE]
+    out = OUT / f"realistic-{spec.replace(':', '-')}{'-' + model if model else ''}"
+    arrivals = [*(TRACE_ARGS or ["--profile", PROFILE]), *(["--model", model] if model else [])]
     span = TRACE_S if TRACE else workload.total_s(workload.parse_profile(PROFILE))
     s = realistic_loadgen(out, *arrivals, "--capacity", str(cap), "--tail-s", str(TAIL_S),
                           timeout=span + TAIL_S + 900)
@@ -318,7 +321,7 @@ def test_realistic_policy(spec):
     ps = pressure_of(pressure_since(s["t0"], out), lambda t: workload.phase_at(profile, t - s["t0"]))
     d = {k: after["gateway"][k] - before["gateway"][k] for k in COUNTERS}
     ph = s.get("by_phase", {})
-    row = {"policy": spec, "workload": WORKLOAD, "capacity_wf_s": cap, "profile": s["profile"],
+    row = {"policy": spec + (f"@{model}" if model else ""), "model": model or None, "workload": WORKLOAD, "capacity_wf_s": cap, "profile": s["profile"],
            "trace": s.get("trace"),
            **{k: s.get(k) for k in ("n", "accuracy", "deadline_met", "correct_and_on_time", "cancelled",
                                      "latency_p50_s", "latency_p95_s", "thinking_tokens_mean", "wall_s")},
