@@ -123,6 +123,8 @@ AWS_PROFILE=rlwalkeradmin BROWNOUT_SUITE=spike BROWNOUT_CAPACITY=0.2 BROWNOUT_MO
 
 It takes about 10 minutes of setup, 6 for the warm-up, and 5-10 per policy (`none` is the slowest). Results are
 the realistic suite's, plus `warmup/` and the warm-up's label counts in `results.json` and `results.md`.
+`python3 infra/brownout/report.py <results folder> --open` charts a run into `report.html`: correct and on time per
+policy, vLLM's running and waiting requests over the run, and latency and thinking tokens by arrival time.
 
 ## Realistic suite (MATH-500, rate profile)
 
