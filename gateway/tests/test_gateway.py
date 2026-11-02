@@ -4,7 +4,7 @@ import json
 import httpx
 import pytest
 
-from brownout_gateway.pressure import parse_metrics, pressure
+from brownout_gateway.pressure import parse_generated, parse_metrics, pressure, slowdown
 from brownout_gateway.jevq import JevScheduler
 from brownout_gateway.priority import heuristic
 from brownout_gateway import create_app
@@ -410,9 +410,42 @@ def test_pressure_series_since(run):
     async def go():
         return await c.get("/v1/pressure", params={"since": 101}), await c.get("/v1/pressure", params={"since": "x"})
     r, bad = run(go())
-    assert r.json()["samples"] == [[101.0, 0.5, 2.0, 4.0], [102.0, 1.0, 9.0, 3.0]]
-    assert r.json()["columns"] == ["t", "p", "waiting", "running"] and bad.status_code == 400
+    assert r.json()["samples"] == [[101.0, 0.5, 2.0, 4.0, None], [102.0, 1.0, 9.0, 3.0, None]]
+    assert r.json()["columns"] == ["t", "p", "waiting", "running", "tpot_ms"] and bad.status_code == 400
     assert gw.monitor.stats()["p_hist_deciles"][0] == 1 and gw.monitor.stats()["p_hist_deciles"][9] == 1
+
+
+def test_decode_time_is_pressure_past_its_slo():
+    text = 'vllm:generation_tokens_total{engine="0"} 100.0\nvllm:generation_tokens_created 1.7e9\n'
+    assert parse_generated(text) == 100.0 and parse_generated("vllm:num_requests_running 3\n") is None
+    assert slowdown(0.05, 0.04) == pytest.approx(0.25) and slowdown(0.03, 0.04) == 0 and slowdown(0.2, 0.04) == 1
+    assert slowdown(0.2, None) == 0 and slowdown(None, 0.04) == 0
+    m = PressureMonitor(tpot_slo=0.04, rate_window=2.0)
+    assert m.decode_time(0.0, 1000, 40) is None
+    tpot = m.decode_time(1.0, 1800, 40)
+    assert tpot == pytest.approx(0.05)
+    m.set(0, 40, tpot)
+    assert m.p == pytest.approx(0.25) and m.series[-1][4] == 50.0 and m.stats()["tpot_ms"] == 50.0
+    m.set(30, 40, tpot)
+    assert m.p == 0.75
+    m.decode_time(2.0, 2600, 20)
+    assert m.decode_time(3.0, 3400, 20) == pytest.approx((40 + 20 + 20) / 3 / 800) and len(m.generated) == 3
+    assert m.decode_time(4.0, 100, 40) is None
+    plain = PressureMonitor()
+    plain.set(0, 40, 0.2)
+    assert plain.p == 0 and plain.stats()["tpot_slo_ms"] is None
+
+
+def test_poll_reads_the_generation_counter(run):
+    texts = iter([f"vllm:num_requests_running 40\nvllm:num_requests_waiting 0\nvllm:generation_tokens_total {g}\n"
+                  for g in (1000, 1800)])
+    http = httpx.AsyncClient(transport=httpx.MockTransport(lambda req: httpx.Response(200, text=next(texts))))
+    now = iter([0.0, 0.0, 1.0, 1.0])
+    m = PressureMonitor("http://vllm/metrics", http=http, clock=lambda: next(now), tpot_slo=0.04)
+    run(m.poll_once())
+    run(m.poll_once())
+    assert m.errors == 0 and m.tpot == pytest.approx(0.05) and m.p == pytest.approx(0.25)
+    assert [x[4] for x in m.since(0)] == [None, 50.0]
 
 
 TWO = "http://vllm-a/v1,http://vllm-b/v1"

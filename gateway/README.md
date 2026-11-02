@@ -52,6 +52,10 @@ each predictor's bucket, and `jev_at` the thinking tokens decoded when Jev's ans
 | `brownout` | Brownout with both: `base = min(requested, classifier budget)` and `w` by priority. |
 
 - Pressure is `p = min(1, waiting / running)` from vLLM `/metrics`, polled every 0.5 s.
+  `--tpot-slo-ms` adds decode time: vLLM can run every request at once with no queue while each
+  decodes slowly, so the gateway also takes `tpot = running / (generated tokens per second)` over
+  the last 5 s (`vllm:generation_tokens_total`) and uses `p = max(queue term, (tpot - slo) / slo)`,
+  capped at 1: 0 at the SLO, 1 at twice it.
 - Nothing is cut below `p = 0.05` (shadow mode).
 - `--predictor` sets what the `brownout` budget comes from: `jev` (default; beside the LLM),
   `jev-serial` (the gateway waits for Jev, up to `--serial-timeout`, before sending the request
@@ -102,8 +106,8 @@ LIFELINE_API_KEY=... brownout-gateway --upstream http://<vllm>:8000/v1 --host 0.
 Endpoints:
 - `/v1/completions` and `/v1/models`, OpenAI-compatible.
 - `GET /v1/stats`: gateway counters, controller, pressure histogram, priority, and classifier.
-- `GET /v1/pressure?since=<unix time>`: the pressure samples taken since then (one per monitor poll, the last 50,000 kept), as `[t, p, waiting, running]`: `samples` for the first replica, `replicas: [{url, samples}]` for each.
-- `POST /admin/policy` with `{policy, notice, predictor, reject_waiting, admit_rate, admit_burst, reset}`; `reset: true` also clears the classifier (word model, Jev examples, stats). It refills the bucket and forgets which workflows were admitted, so a sweep can reuse workflow ids.
+- `GET /v1/pressure?since=<unix time>`: the pressure samples taken since then (one per monitor poll, the last 50,000 kept), as `[t, p, waiting, running, tpot_ms]` (`tpot_ms` is null until the generation counter has moved): `samples` for the first replica, `replicas: [{url, samples}]` for each.
+- `POST /admin/policy` with `{policy, notice, predictor, reject_waiting, admit_rate, admit_burst, reset}`; `reset: true` also clears the classifier (word model, Jev examples, stats); `snapshot: true` saves the classifier and `reset: "warm"` restores that snapshot instead. It refills the bucket and forgets which workflows were admitted, so a sweep can reuse workflow ids.
 
 ## Several vLLM replicas
 

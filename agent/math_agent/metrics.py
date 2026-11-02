@@ -87,6 +87,9 @@ def pressure_summary(samples: list, phase_of=None) -> dict:
            "p_zero": round(sum(s[1] == 0 for s in samples) / n, 4),
            "queue_frac": round(sum(s[2] > 0 for s in samples) / n, 4),
            "p_hist_deciles": [round(h / n, 4) for h in hist]}
+    tpot = [s[4] for s in samples if len(s) > 4 and s[4] is not None]
+    if tpot:
+        out["tpot_ms_mean"] = round(mean(tpot), 1)
     if phase_of is not None:
         groups: dict[str, list] = {}
         for s in samples:

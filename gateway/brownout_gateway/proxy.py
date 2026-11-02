@@ -350,7 +350,7 @@ def create_app(gw: Gateway, *, state_path: str | Path | None = None, background:
             since = float(request.query_params.get("since", 0))
         except ValueError:
             return JSONResponse({"error": "since must be a unix time"}, status_code=400)
-        return JSONResponse({"interval": gw.monitor.interval, "columns": ["t", "p", "waiting", "running"],
+        return JSONResponse({"interval": gw.monitor.interval, "columns": ["t", "p", "waiting", "running", "tpot_ms"],
                              "samples": gw.monitor.since(since),
                              "replicas": [{"url": r.url, "samples": r.monitor.since(since)}
                                           for r in gw.router.replicas]})

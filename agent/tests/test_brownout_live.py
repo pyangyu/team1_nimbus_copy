@@ -68,6 +68,7 @@ TRACE_S = float(env("BROWNOUT_TRACE_S", "1800"))
 SEED = int(os.environ.get("BROWNOUT_SEED", "0"))
 TAIL_S = float(env("BROWNOUT_TAIL_S", "1200"))
 WARMUP_N = int(os.environ.get("BROWNOUT_WARMUP_N", "64"))
+TPOT_SLO_MS = os.environ.get("BROWNOUT_TPOT_SLO_MS") or None
 WARMUP: dict = {}
 CAP_CONCURRENCY = os.environ.get("BROWNOUT_CAPACITY_CONCURRENCY")
 CAP_WARMUP_S = float(os.environ.get("BROWNOUT_CAPACITY_WARMUP_S", "180"))
@@ -76,7 +77,7 @@ CAPACITY: dict = {}
 REAL_COLUMNS = ("policy", "n", "accuracy", "deadline_met", "correct_and_on_time", "goodput_baseline", "goodput_burst",
                 "accuracy_baseline", "accuracy_burst", "cancelled", "latency_p50_s", "latency_p95_s",
                 "thinking_tokens_mean", "think", "cut", "announced", "notices", "p_mean", "p_at_cap", "p_zero",
-                "queue_frac", "p_mean_baseline", "p_mean_burst", "word_model_window", "word_model_exact",
+                "queue_frac", "tpot_ms_mean", "p_mean_baseline", "p_mean_burst", "word_model_window", "word_model_exact",
                 "word_model_within_one", "word_model_under", "jev_asked", "replica_think", "p_mean_replicas")
 REJECT_WAITING = float(os.environ.get("BROWNOUT_REJECT_WAITING", "2"))
 ADMIT_RATE = float(os.environ.get("BROWNOUT_ADMIT_RATE", "0.25"))
@@ -254,6 +255,7 @@ def write_realistic() -> None:
     (OUT / "results.json").write_text(json.dumps({"suite": SUITE, "workload": WORKLOAD, "profile": None if TRACE else PROFILE,
                                                   "trace_args": TRACE_ARGS, "split": "a" if SPIKE else None,
                                                   "seed": SEED, "capacity": CAPACITY, "warmup": WARMUP or None,
+                                                  "tpot_slo_ms": TPOT_SLO_MS,
                                                   "runs": RESULTS}, indent=2))
     cap = CAPACITY.get("capacity_wf_s")
     arrivals = (f"trace `{' '.join(TRACE_ARGS)}` (profile from the trace, rates x C: `{RESULTS[0]['profile']}`)"
@@ -264,6 +266,8 @@ def write_realistic() -> None:
              f"{CAPACITY.get('capacity_think_tok_s')} thinking tokens/s over {CAPACITY.get('replicas')} vLLM "
              f"replica(s), {CAPACITY.get('window_n')} workflows "
              f"in the window, queue present in {CAPACITY.get('queue_frac')} of samples).", "",
+             f"Pressure: the queue (waiting / running)" + (f" and decode time past {TPOT_SLO_MS} ms per output token"
+                                                           if TPOT_SLO_MS else "") + ".", "",
              *([f"Spike suite: problems from split a; every arm starts from a length predictor warmed on "
                 f"{WARMUP.get('n')} split-b workflows ({WARMUP.get('labels')} labels, {WARMUP.get('censored')} "
                 f"censored) under policy none.", ""] if SPIKE else []),
@@ -361,7 +365,7 @@ def test_realistic_policy(spec):
            **{f"accuracy_{k}": v.get("accuracy") for k, v in ph.items()},
            **{f"n_{k}": v.get("n") for k, v in ph.items()},
            **d, "observed": observed(after) - observed(before),
-           **{k: ps.get(k) for k in ("p_mean", "p_at_cap", "p_zero", "queue_frac")},
+           **{k: ps.get(k) for k in ("p_mean", "p_at_cap", "p_zero", "queue_frac", "tpot_ms_mean")},
            **{f"p_mean_{k}": v["p_mean"] for k, v in ps.get("by_phase", {}).items()},
            **word_model(after), "jev_asked": after["jev"]["asked"] - before["jev"]["asked"],
            "replica_think": [a["think"] - b["think"] for a, b in zip(after.get("replicas", []),

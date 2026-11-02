@@ -40,11 +40,20 @@ def jsonl(path: Path) -> list:
 def vllm(d: Path, t0: float, col: int) -> list[list[float]]:
     by: dict[tuple[int, int], list[float]] = {}
     for row in jsonl(d / "pressure.jsonl"):
-        by.setdefault((int((row[0] - t0) // QUEUE_BIN_S), row[4] if len(row) > 4 else 0), []).append(row[col])
+        by.setdefault((int((row[0] - t0) // QUEUE_BIN_S), row[-1] if len(row) > 4 else 0), []).append(row[col])
     bins: dict[int, float] = {}
     for (k, _), xs in by.items():
         bins[k] = bins.get(k, 0.0) + statistics.fmean(xs)
     return [[round(k * QUEUE_BIN_S, 1), round(v, 2)] for k, v in sorted(bins.items()) if k >= 0]
+
+
+def decode(d: Path, t0: float) -> list[list[float]]:
+    by: dict[int, dict[int, list[float]]] = {}
+    for row in jsonl(d / "pressure.jsonl"):
+        if len(row) > 5 and row[4] is not None:
+            by.setdefault(int((row[0] - t0) // QUEUE_BIN_S), {}).setdefault(row[-1], []).append(row[4])
+    return [[round(k * QUEUE_BIN_S, 1), round(statistics.fmean(statistics.fmean(xs) for xs in reps.values()), 1)]
+            for k, reps in sorted(by.items()) if k >= 0]
 
 
 def by_arrival(wfs: list[dict], t0: float, key: str) -> list[list[float]]:
@@ -83,12 +92,14 @@ def collect(root: Path) -> dict:
                      "latency_p50_s": r.get("latency_p50_s"), "latency_p95_s": r.get("latency_p95_s"),
                      "thinking_tokens_mean": r.get("thinking_tokens_mean"), "cut": r.get("cut"),
                      "notices": r.get("notices"), "queue": vllm(d, s["t0"], 2), "running": vllm(d, s["t0"], 3),
+                     "tpot": decode(d, s["t0"]),
                      "latency": by_arrival(wfs, s["t0"], "latency_s"),
                      "thinking": by_arrival(wfs, s["t0"], "thinking_tokens")})
     cap = res.get("capacity") or {}
     warm = res.get("warmup") or {}
     return {"suite": res.get("suite"), "workload": res.get("workload"), "trace_args": res.get("trace_args"),
             "capacity": cap.get("capacity_wf_s"), "warmup": warm, "bursts": bursts(profile), "profile": profile,
+            "tpot_slo_ms": float(res["tpot_slo_ms"]) if res.get("tpot_slo_ms") else None,
             "runs": runs}
 
 
@@ -247,14 +258,15 @@ function bars(c, parent, title, key, tip) {
   });
 }
 
-function lines(title, note, key, unit) {
+function lines(title, note, key, unit, ref) {
   const c = card(title, note), tip = tipBox(c), runs = DATA.runs;
   const lg = el("div", {class: "legend"}, c);
   for (const r of runs) { const s = el("span", {}, lg); const k = el("span", {class: "key"}, s);
     k.style.background = color(r); s.appendChild(document.createTextNode(r.name)); }
   const W = 900, H = 280, L = 52, R = 16, T = 10, B = 34;
   const xs = [...new Set(runs.flatMap(r => r[key].map(p => p[0])))].sort((a, b) => a - b);
-  const xmax = Math.max(60, ...xs), ymax = niceMax(Math.max(0, ...runs.flatMap(r => r[key].map(p => p[1]))));
+  const xmax = Math.max(60, ...xs);
+  const ymax = niceMax(Math.max(0, ref ? ref.value * 1.2 : 0, ...runs.flatMap(r => r[key].map(p => p[1]))));
   const x = v => L + (W - L - R) * v / xmax, y = v => T + (H - T - B) * (1 - v / ymax);
   const svg = el("svg:svg", {viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": title}, c);
   for (const [a, b, rate] of DATA.bursts) {
@@ -267,6 +279,11 @@ function lines(title, note, key, unit) {
     const v = ymax * k / 4;
     el("svg:line", {x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: k ? "var(--grid)" : "var(--axis)", "stroke-width": 1}, svg);
     el("svg:text", {x: L - 8, y: y(v) + 4, "text-anchor": "end", text: fmt(v)}, svg);
+  }
+  if (ref) {
+    el("svg:line", {x1: L, x2: W - R, y1: y(ref.value), y2: y(ref.value), stroke: "var(--text-secondary)",
+      "stroke-width": 1}, svg);
+    el("svg:text", {x: W - R, y: y(ref.value) - 6, "text-anchor": "end", text: ref.label}, svg);
   }
   const step = xmax > 900 ? 300 : xmax > 400 ? 120 : 60;
   for (let v = 0; v <= xmax; v += step) el("svg:text", {x: x(v), y: H - 14, "text-anchor": "middle",
@@ -336,6 +353,11 @@ function render() {
         "GPU, so more of them means slower decoding for each.", "running", "");
   lines("Requests waiting in the vLLM queue", "Both replicas together, averaged over 5 s. Brownout's pressure is " +
         "waiting ÷ running on each replica.", "queue", "");
+  if (runs.some(r => r.tpot.length))
+    lines("Decode time per output token", "Milliseconds per token for each running request (running ÷ tokens " +
+          "generated per second), both replicas averaged over 5 s." + (DATA.tpot_slo_ms ? " Above the SLO line, " +
+          "brownout counts the slowdown as pressure." : ""), "tpot", " ms",
+          DATA.tpot_slo_ms ? {value: DATA.tpot_slo_ms, label: `SLO ${DATA.tpot_slo_ms} ms`} : null);
   lines("Latency by arrival time", "Seconds, median over the finished workflows that arrived in each 20 s window " +
         "(cancelled ones are left out).", "latency", " s");
   lines("Thinking tokens by arrival time", "Tokens per finished workflow over all its think calls, median per 20 s " +

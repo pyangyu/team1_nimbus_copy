@@ -61,7 +61,7 @@ if [[ $ROLE == jev ]]; then
 After=network-online.target
 [Service]
 EnvironmentFile=/etc/brownout-gateway.env
-ExecStart=$PY -m brownout_gateway.cli --upstream $UPSTREAM --host 0.0.0.0 --port 9000 $JEV_ARGS ${BROWNOUT_NOTICE:+--notice-text $BROWNOUT_NOTICE} --state /var/lib/brownout/classifier.npz --log /var/lib/brownout/gateway.jsonl
+ExecStart=$PY -m brownout_gateway.cli --upstream $UPSTREAM --host 0.0.0.0 --port 9000 $JEV_ARGS ${BROWNOUT_NOTICE:+--notice-text $BROWNOUT_NOTICE} ${BROWNOUT_TPOT_SLO_MS:+--tpot-slo-ms $BROWNOUT_TPOT_SLO_MS} --state /var/lib/brownout/classifier.npz --log /var/lib/brownout/gateway.jsonl
 Restart=always
 [Install]
 WantedBy=multi-user.target

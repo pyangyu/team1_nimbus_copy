@@ -102,7 +102,9 @@ def test_pressure_summary():
     assert s["p_samples"] == 4 and s["p_zero"] == 0.25 and s["p_at_cap"] == 0.25 and s["queue_frac"] == 0.75
     assert s["p_hist_deciles"] == [0.5, 0, 0, 0, 0, 0.25, 0, 0, 0, 0.25]
     assert s["by_phase"]["burst"]["p_mean"] == 0.775 and s["by_phase"]["baseline"]["p_at_cap"] == 0
-    assert metrics.pressure_summary([]) == {"p_samples": 0}
+    assert metrics.pressure_summary([]) == {"p_samples": 0} and "tpot_ms_mean" not in s
+    timed = metrics.pressure_summary([[0, 0.0, 0, 2, None], [1, 0.25, 0, 40, 50.0], [2, 0.0, 0, 30, 30.0]])
+    assert timed["tpot_ms_mean"] == 40.0
 
 
 def test_loadgen_profile_mode_is_reproducible(data_dir, tmp_path):

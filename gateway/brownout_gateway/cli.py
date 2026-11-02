@@ -27,7 +27,8 @@ def build(args: argparse.Namespace) -> tuple[Gateway, str | None]:
                     else [u.removesuffix("/v1") + "/metrics" for u in upstreams])
     if len(metrics_urls) != len(upstreams):
         raise SystemExit("--metrics-url needs one URL per --upstream")
-    monitors = [PressureMonitor(m, interval=args.poll, http=http) for m in metrics_urls]
+    slo = args.tpot_slo_ms / 1000 if args.tpot_slo_ms else None
+    monitors = [PressureMonitor(m, interval=args.poll, http=http, tpot_slo=slo) for m in metrics_urls]
     controller = Controller(monitors[0], policy=args.policy, notice=args.notice, predictor=args.predictor,
                             min_left=args.min_left, max_frac=args.max_frac, active_at=args.active_at,
                             renotice_min=args.renotice_min, renotice_frac=args.renotice_frac)
@@ -68,6 +69,9 @@ def cli(argv: list[str] | None = None) -> None:
                     help="announced: or this fraction of the budget left at the last notice, if larger")
     ap.add_argument("--active-at", type=float, default=0.05)
     ap.add_argument("--poll", type=float, default=0.5)
+    ap.add_argument("--tpot-slo-ms", type=float,
+                    help="decode-time SLO per output token of a running request: pressure is also "
+                         "(tpot - slo) / slo, from 0 at the SLO to 1 at twice it (default: the queue only)")
     ap.add_argument("--edges")
     ap.add_argument("--quantile", type=float, default=0.5)
     ap.add_argument("--state")

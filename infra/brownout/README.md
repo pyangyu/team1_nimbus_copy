@@ -192,6 +192,7 @@ MATH bands and 90 s for GSM8K.
 | `BROWNOUT_MODEL` | unset (`MODEL` in `../vllm-ec2/config.env`); both replicas are set up with it, and runs without `@name` ask for it |
 | `BROWNOUT_LORA` | unset; `name=ci/key.tgz` serves a LoRA tarball (one top folder with `adapter_config.json`) from the CI bucket as model `name` on both replicas |
 | `BROWNOUT_NOTICE` | unset (`<budget_cut left=N>`); `countdown` is the sentence the `training/` models learned, or any text with `{N}` |
+| `BROWNOUT_TPOT_SLO_MS` | unset (pressure is the queue only); a value starts the gateway with `--tpot-slo-ms`, so a crowded batch that decodes slower than this many ms per token per request also counts as pressure. 35 fits the default workload: a level 1-2 workflow of about 6,000 tokens still meets a 1.5x deadline (225 s) at 28 tokens/s |
 | `BROWNOUT_POLICIES` | `none,uniform,brownout:silent:online,brownout:announced:online` |
 | `BROWNOUT_JEV` | `0` in this suite, `1` otherwise (`1` deploys Open-Jev and passes `--jev-url` to the gateway) |
 | `BROWNOUT_LLM_ON_JEV` | `1` in this suite (second vLLM replica on the Jev box; needs `BROWNOUT_JEV=0`), `0` otherwise |
