@@ -42,15 +42,18 @@ if [[ "${BROWNOUT_SUITE:-default}" == realistic || "${BROWNOUT_SUITE:-default}" 
   export BROWNOUT_JEV=${BROWNOUT_JEV:-0}
   BROWNOUT_LLM_ON_JEV=${BROWNOUT_LLM_ON_JEV:-1}
 fi
+cfg() { grep -E "^$1=" ../vllm-ec2/config.env | cut -d= -f2-; }
 if [[ "${BROWNOUT_LLM_ON_JEV:-0}" == 1 ]]; then
   [[ "${BROWNOUT_JEV:-1}" == 0 ]] || { echo "BROWNOUT_LLM_ON_JEV=1 needs BROWNOUT_JEV=0 (one GPU on the Jev box)" >&2; exit 1; }
-  cfg() { grep -E "^$1=" ../vllm-ec2/config.env | cut -d= -f2-; }
   model=${BROWNOUT_MODEL:-$(cfg MODEL)}
   for id in "$BROWNOUT_LLM_ID" "$BROWNOUT_JEV_ID"; do
     ssm_script "$id" 3600 remote/setup_llm.sh "$(cfg VLLM_IMAGE)" "$model" "$(cfg MAX_MODEL_LEN)" "${BROWNOUT_LORA:-}"
   done
   ssm_script "$BROWNOUT_LLM_ID" 300 remote/show_vllm.sh || true
   UPSTREAMS="http://127.0.0.1:8000/v1,$BROWNOUT_LLM_URL"
+elif [[ -n "${BROWNOUT_MODEL:-}${BROWNOUT_LORA:-}" ]]; then
+  ssm_script "$BROWNOUT_LLM_ID" 3600 remote/setup_llm.sh "$(cfg VLLM_IMAGE)" "${BROWNOUT_MODEL:-$(cfg MODEL)}" \
+    "$(cfg MAX_MODEL_LEN)" "${BROWNOUT_LORA:-}"
 fi
 [[ "${BROWNOUT_JEV:-1}" == 0 ]] || ssm_script "$BROWNOUT_JEV_ID" 3600 remote/setup_jev.sh
 ssm_script "$BROWNOUT_JEV_ID" 1200 remote/deploy.sh "$SHA" jev "$UPSTREAMS"

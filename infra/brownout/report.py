@@ -15,16 +15,19 @@ from pathlib import Path
 LIGHT = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
 DARK = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"]
 NAMES = {"none": "No control", "uniform": "Uniform cut", "brownout": "Brownout", "reject": "Reject", "defer": "Defer"}
+PREDICTORS = {"online": "classifier", "jev": "Jev", "jev-serial": "Jev, waited for", "oracle": "true lengths"}
 QUEUE_BIN_S = 5.0
 ARRIVAL_BIN_S = 20.0
 
 
 def label(spec: str) -> str:
     spec, _, model = spec.partition("@")
-    policy, notice = (spec.split(":") + [""])[:2]
+    policy, notice, predictor = (spec.split(":") + ["", ""])[:3]
     out = NAMES.get(policy, policy)
     if policy in ("uniform", "brownout"):
         out += ", announced" if notice == "announced" else ", silent"
+    if policy == "brownout" and predictor:
+        out += f", {PREDICTORS.get(predictor, predictor)}"
     return out + (f" + {model}" if model else "")
 
 

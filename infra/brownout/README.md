@@ -121,6 +121,10 @@ AWS_PROFILE=rlwalkeradmin BROWNOUT_SUITE=spike BROWNOUT_CAPACITY=0.2 BROWNOUT_MO
   infra/brownout/e2e.sh <commit>
 ```
 
+To compare predictors on the same LLM hardware, run `BROWNOUT_JEV=1 BROWNOUT_LLM_ON_JEV=0` with half the
+capacity: every policy gets one vLLM replica on the batch box, and Jev has the Jev box's GPU (`BROWNOUT_MODEL` or
+`BROWNOUT_LORA` sets that one replica up, as with two).
+
 It takes about 10 minutes of setup, 6 for the warm-up, and 5-10 per policy (`none` is the slowest). Results are
 the realistic suite's, plus `warmup/` and the warm-up's label counts in `results.json` and `results.md`.
 `python3 infra/brownout/report.py <results folder> --open` charts a run into `report.html`: correct and on time per
