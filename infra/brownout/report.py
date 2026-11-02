@@ -6,6 +6,7 @@ over the run, and latency and thinking tokens by arrival time.
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import statistics
 import subprocess
@@ -111,7 +112,7 @@ PAGE = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Thinking Brownout report</title>
+<title>__TITLE__</title>
 <style>
 .viz-root {
   color-scheme: light;
@@ -234,8 +235,10 @@ function table(c, head, rows) {
 function bars(c, parent, title, key, tip) {
   const box = el("div", {}, parent);
   el("h3", {text: title}, box);
-  const runs = DATA.runs, W = 320, rowH = 30, left = 132, right = 44, top = 6, H = top + runs.length * rowH + 22;
-  const svg = el("svg:svg", {viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": title}, box);
+  const runs = DATA.runs, rowH = 30, right = 44, top = 6, H = top + runs.length * rowH + 22;
+  const left = Math.max(110, Math.round(14 + 6.8 * Math.max(...runs.map(r => r.name.length)))), W = left + 180 + right;
+  parent.style.gridTemplateColumns = `repeat(auto-fit, minmax(${W}px, 1fr))`;
+  const svg = el("svg:svg", {viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": title, style: `max-width: ${W}px`}, box);
   const x = v => left + (W - left - right) * v;
   for (const g of [0, 0.25, 0.5, 0.75, 1]) {
     el("svg:line", {x1: x(g), x2: x(g), y1: top, y2: H - 20, stroke: "var(--grid)", "stroke-width": 1}, svg);
@@ -329,13 +332,15 @@ function render() {
   const runs = DATA.runs;
   const args = DATA.trace_args || [], wi = args.indexOf("--trace-window-h");
   const spike = DATA.suite === "spike" || (wi >= 0 && parseFloat(args[wi + 1]) <= 0.5);
-  el("h1", {text: spike ? "Thinking Brownout under one BurstGPT spike"
-    : args.length ? "Thinking Brownout under a BurstGPT replay" : "Thinking Brownout under a rate profile"}, app);
+  el("h1", {text: DATA.title || (spike ? "Thinking Brownout under one BurstGPT spike"
+    : args.length ? "Thinking Brownout under a BurstGPT replay" : "Thinking Brownout under a rate profile")}, app);
   const n = runs.length ? runs[0].n : 0;
   const sub = [`${n} MATH-500 problems per policy, the same problems at the same times in every run`];
   if (DATA.capacity) sub.push(`capacity C = ${DATA.capacity} workflows/s`);
   if (DATA.warmup && DATA.warmup.labels) sub.push(`length predictor warmed on ${DATA.warmup.n} other problems`);
+  if (DATA.tpot_slo_ms) sub.push(`brownout cuts when vLLM queues or decoding slows past ${DATA.tpot_slo_ms} ms per token`);
   el("p", {class: "sub", text: sub.join(" · ")}, app);
+  if (DATA.note) el("p", {class: "sub", text: DATA.note}, app);
   const none = runs.find(r => r.spec === "none");
   const best = runs.reduce((a, r) => (r.goodput || 0) > (a.goodput || 0) ? r : a, runs[0]);
   if (best) el("p", {class: "headline", text: none && best !== none
@@ -352,13 +357,13 @@ function render() {
         runs.map(r => [r.name, String(r.n), pct(r.goodput), pct(r.accuracy), pct(r.deadline_met), fmt(r.latency_p50_s),
                        fmt(r.latency_p95_s), fmt(r.thinking_tokens_mean), String(r.cut ?? "–"), String(r.notices ?? "–"),
                        String(r.cancelled ?? "–")]));
-  lines("Requests running in vLLM", "Both replicas together, averaged over 5 s. Every running request shares the " +
+  lines("Requests running in vLLM", "All vLLM replicas together, averaged over 5 s. Every running request shares the " +
         "GPU, so more of them means slower decoding for each.", "running", "");
-  lines("Requests waiting in the vLLM queue", "Both replicas together, averaged over 5 s. Brownout's pressure is " +
+  lines("Requests waiting in the vLLM queue", "All vLLM replicas together, averaged over 5 s. Brownout's pressure is " +
         "waiting ÷ running on each replica.", "queue", "");
   if (runs.some(r => r.tpot.length))
     lines("Decode time per output token", "Milliseconds per token for each running request (running ÷ tokens " +
-          "generated per second), both replicas averaged over 5 s." + (DATA.tpot_slo_ms ? " Above the SLO line, " +
+          "generated per second), averaged over replicas and 5 s." + (DATA.tpot_slo_ms ? " Above the SLO line, " +
           "brownout counts the slowdown as pressure." : ""), "tpot", " ms",
           DATA.tpot_slo_ms ? {value: DATA.tpot_slo_ms, label: `SLO ${DATA.tpot_slo_ms} ms`} : null);
   lines("Latency by arrival time", "Seconds, median over the finished workflows that arrived in each 20 s window " +
@@ -379,9 +384,13 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("results", type=Path)
     ap.add_argument("--open", action="store_true")
+    ap.add_argument("--title", help="page title and heading (default: from the suite)")
+    ap.add_argument("--note", help="a line under the heading, e.g. the hardware")
     args = ap.parse_args()
     out = args.results / "report.html"
-    out.write_text(PAGE.replace("__DATA__", json.dumps(collect(args.results)).replace("</", "<\\/")))
+    data = {**collect(args.results), "title": args.title, "note": args.note}
+    page = PAGE.replace("__TITLE__", html.escape(args.title or "Thinking Brownout report"))
+    out.write_text(page.replace("__DATA__", json.dumps(data).replace("</", "<\\/")))
     print(out)
     if args.open and sys.platform == "darwin":
         subprocess.run(["open", str(out)], check=False)
