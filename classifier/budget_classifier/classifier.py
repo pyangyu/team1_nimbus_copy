@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from collections import OrderedDict, deque
 from dataclasses import asdict, dataclass, field
@@ -107,6 +108,7 @@ class BudgetClassifier:
         self.current_model: str | None = None
         self.upgrades = 0
         self.pressure = 0.0
+        self._snap: tuple | None = None
 
     def reset(self) -> None:
         self.online = OnlineModel(self.buckets.n, dim=self.dim, lr=self.online.lr, spread=self.online.spread)
@@ -114,6 +116,16 @@ class BudgetClassifier:
         self.pending.clear()
         self.versions.clear()
         self.current_model, self.upgrades = None, 0
+
+    def snapshot(self) -> None:
+        self._snap = copy.deepcopy((self.online, self.memory, self.versions, self.current_model, self.upgrades))
+
+    def restore(self) -> None:
+        if self._snap is None:
+            self.reset()
+            return
+        self.online, self.memory, self.versions, self.current_model, self.upgrades = copy.deepcopy(self._snap)
+        self.pending.clear()
 
     @property
     def shadow(self) -> bool:

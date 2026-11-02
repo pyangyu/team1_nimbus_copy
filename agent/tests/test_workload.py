@@ -206,3 +206,23 @@ def test_loadgen_trace_mode(data_dir, tmp_path):
     p = subprocess.run([sys.executable, "-m", "math_agent.loadgen", "--trace", "burstgpt", "--capacity", "1",
                         "--workload", "gsm8k"], capture_output=True, text=True)
     assert p.returncode != 0 and "MATH-500" in p.stderr
+
+
+def test_split_halves_a_pool_by_problem_id():
+    pool = [Example(f"m/{i}", "q", "1", "math", 1 + i % 5) for i in range(400)]
+    a, b = workload.split(pool, "a"), workload.split(pool, "b")
+    assert {e.id for e in a}.isdisjoint(e.id for e in b) and len(a) + len(b) == len(pool)
+    assert 150 < len(a) < 250 and workload.split(pool[::-1], "a") == a[::-1]
+    with pytest.raises(ValueError):
+        workload.split(pool, "c")
+
+
+def test_loadgen_split_keeps_one_half(data_dir, tmp_path):
+    seen = {}
+    for part in workload.SPLITS:
+        with StubVLLM(PROBLEMS) as stub:
+            wfs, _, s = agent("loadgen", stub, data_dir, tmp_path / part, "--workload", "math500:5", "--level-budgets",
+                              "--rate", "50", "--n", "8", "--split", part, "--max-loops", "0")
+        seen[part] = {w["example_id"] for w in wfs}
+        assert s["errors"] == 0 and len(wfs) == 8
+    assert seen["b"] == {"easy"} and seen["a"] and "easy" not in seen["a"]

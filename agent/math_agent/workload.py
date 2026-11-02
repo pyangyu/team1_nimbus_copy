@@ -5,9 +5,13 @@ or `gsm8k=0.5,math500:4-5=0.5`. Levels are one MATH level or a range `lo-hi`.
 
 A profile is a comma list of `duration_s:rate`, the rate in units of capacity C,
 for example `180:0.7,120:1.5`. Arrivals are Poisson within each segment.
+
+A split keeps half of a pool, by a hash of the problem id, so two runs can use disjoint problems:
+the spike suite warms the length predictor on split b and measures on split a.
 """
 from __future__ import annotations
 
+import hashlib
 import random
 from dataclasses import dataclass
 
@@ -20,6 +24,7 @@ LEVEL_BUDGETS = {1: (2048, 4096, 150.0), 2: (2048, 4096, 150.0), 3: (4096, 6144,
                  4: (6144, 6144, 450.0), 5: (6144, 6144, 450.0)}
 GSM8K_BUDGET = (1024, 2048, 90.0)
 HARD_BUDGET = (6144, 6144, 450.0)
+SPLITS = ("a", "b")
 
 
 @dataclass(frozen=True)
@@ -76,6 +81,12 @@ def pools(components: list[Component]) -> list[list[Example]]:
             raise ValueError(f"no problems for {c}")
         out.append(pool)
     return out
+
+
+def split(pool: list[Example], part: str) -> list[Example]:
+    if part not in SPLITS:
+        raise ValueError(f"split must be one of {SPLITS}, got {part!r}")
+    return [e for e in pool if SPLITS[hashlib.sha256(e.id.encode()).digest()[0] & 1] == part]
 
 
 class Sampler:

@@ -53,11 +53,15 @@ async def main(args) -> None:
     if args.workload:
         comps = workload.parse_workload(args.workload)
         pools = workload.pools(comps)
+        if args.split:
+            pools = [workload.split(pool, args.split) for pool in pools]
         if solo and args.only_ref:
             pools = [[e for e in pool if e.id in solo] for pool in pools]
         sampler = workload.Sampler(comps, pools, args.seed)
     else:
         pool = examples_from(args)
+        if args.split:
+            pool = workload.split(pool, args.split)
         if solo and args.only_ref:
             pool = [e for e in pool if e.id in solo]
         sampler = workload.Sampler([workload.Component(args.dataset)], [pool], args.seed)
@@ -210,6 +214,8 @@ def cli(argv=None) -> None:
     p.add_argument("--n", type=int, default=100, help="workflows in fixed-rate mode")
     p.add_argument("--workload", help="dataset[:levels][=weight],... e.g. math500:1-5 or gsm8k=0.5,math500:4-5=0.5 "
                                       "(replaces --dataset/--levels)")
+    p.add_argument("--split", choices=workload.SPLITS,
+                   help="keep only this half of each problem pool, split by a hash of the problem id")
     p.add_argument("--level-budgets", action="store_true",
                    help="per-problem budget and solo latency by MATH level (1-2: 2048, 3: 4096, 4-5: 6144; GSM8K 1024)")
     p.add_argument("--profile", help="rate profile duration_s:rate,... with rates in units of --capacity")

@@ -343,6 +343,19 @@ def test_reset_forgets_learned_state(run):
     assert gw.clf.stats()["versions"] == {} and not gw.clf.memory.items and not gw.clf.online.W.any()
 
 
+def test_warm_reset_restores_the_snapshot(run):
+    gw, fake, c = make()
+    run(c.post("/v1/completions", json=body("easy"), headers=think_headers()))
+    run(c.post("/admin/policy", json={"snapshot": True}))
+    run(c.post("/v1/completions", json=body("hard", 300), headers=think_headers(wf="w2", budget=300)))
+    assert gw.clf.stats()["versions"]["fake"]["censored"] == 1
+    run(c.post("/admin/policy", json={"policy": "brownout", "reset": "warm"}))
+    v = gw.clf.stats()["versions"]["fake"]
+    assert v["labels"] == 1 and v["censored"] == 0 and gw.clf.online.W.any() and gw.clf.memory.items
+    run(c.post("/admin/policy", json={"policy": "brownout", "reset": True}))
+    assert gw.clf.stats()["versions"] == {} and not gw.clf.online.W.any()
+
+
 def test_jev_queue_serves_waiting_requests_first(run):
     seen = []
     jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev_slow(seen, 0.02))

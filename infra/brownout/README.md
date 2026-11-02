@@ -83,6 +83,47 @@ benefits from the runs before it. Accuracy and deadline numbers are reported in
   rates for each in `results.md`)
 - `jev-serial` waited for Jev on every think request, and Jev answered before the first token
 
+## Spike suite (the standard test, one BurstGPT spike)
+
+`BROWNOUT_SUITE=spike` is the realistic suite below cut down to the part that tests Brownout: each policy gets
+one spike instead of a 30-minute replay. The spike is the sharpest in the default BurstGPT window: 16 minutes of
+trace from hour 522.0, two minutes of normal traffic at about 0.9 C, then two minutes at about 3.2 C, replayed in
+240 s at the full test's scale (`BROWNOUT_LOAD=2.04` thins the spike the way 1.3 x C thins the two-hour window).
+With C = 0.2 that is 98 workflows per policy, the same problems at the same times in every run.
+
+C is given, not measured: `BROWNOUT_CAPACITY` is required, and `e2e.sh` stops before starting any box without it.
+For Qwen3-4B on the two A10G replicas it is 0.2 workflows/s: with a queue they generate about 1,750 tokens/s, and a
+workflow of the default mix produces about 7,800. The closed-loop measurement only counts workflows that finish
+inside its window, so it undercounts when they take longer than the warm-up: at 192 in flight none finished before
+575 s, and it reported 0.10.
+
+Before the policies, a warm-up run (policy `none`, `BROWNOUT_WARMUP_N` workflows at one per second) teaches the
+word-model predictor thinking lengths, and the gateway snapshots it (`POST /admin/policy {"snapshot": true}`). Each
+policy starts from that snapshot (`"reset": "warm"`). A cold predictor puts every request in the median bucket of a
+uniform prior, 512-1K tokens, so a spike shorter than the first completions would measure over-cutting, not
+Brownout. The warm-up and the policies use disjoint halves of MATH-500 (`loadgen --split b` and `--split a`, by a
+hash of the problem id), so the predictor has not seen a measured problem.
+
+| Variable | Default in this suite |
+|---|---|
+| `BROWNOUT_CAPACITY` | required (workflows/s) |
+| `BROWNOUT_TRACE` | `burstgpt` |
+| `BROWNOUT_TRACE_START_H`, `BROWNOUT_TRACE_WINDOW_H` | `522.0`, `0.26667` |
+| `BROWNOUT_TRACE_S` | `240` |
+| `BROWNOUT_LOAD` | `2.04` |
+| `BROWNOUT_TAIL_S` | `600` (long enough for `none` to finish) |
+| `BROWNOUT_WARMUP_N` | `64` |
+
+The other variables are the realistic suite's.
+
+```
+AWS_PROFILE=rlwalkeradmin BROWNOUT_SUITE=spike BROWNOUT_CAPACITY=0.2 BROWNOUT_MODEL=Qwen/Qwen3-4B BROWNOUT_STOP=1 \
+  infra/brownout/e2e.sh <commit>
+```
+
+It takes about 10 minutes of setup, 6 for the warm-up, and 5-10 per policy (`none` is the slowest). Results are
+the realistic suite's, plus `warmup/` and the warm-up's label counts in `results.json` and `results.md`.
+
 ## Realistic suite (MATH-500, rate profile)
 
 `BROWNOUT_SUITE=realistic` replaces the fixed-rate sweeps above with a suite where the one
@@ -138,7 +179,7 @@ MATH bands and 90 s for GSM8K.
 
 | Variable | Default |
 |---|---|
-| `BROWNOUT_SUITE` | `default` (the sweeps above); `realistic` runs this suite |
+| `BROWNOUT_SUITE` | `default` (the sweeps above); `realistic` runs this suite, `spike` the spike suite above |
 | `BROWNOUT_WORKLOAD` | `math500:1-5`. Format `dataset[:levels][=weight],...`, e.g. `math500:4-5` or `gsm8k=0.5,math500:4-5=0.5` |
 | `BROWNOUT_PROFILE` | `180:0.7,120:1.2,180:0.7,180:1.5,240:0.7,120:2.0,180:0.7,240:1.2,300:0.7` (29 min; rate > 1 is a burst) |
 | `BROWNOUT_TRACE` | unset (use the profile); `burstgpt` replays BurstGPT arrivals |

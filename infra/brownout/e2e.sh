@@ -10,6 +10,10 @@ set -euo pipefail
 CALLER=$PWD
 REF=${1:-HEAD}
 source "$(dirname "$0")/env.sh"
+if [[ "${BROWNOUT_SUITE:-default}" == spike && -z "${BROWNOUT_CAPACITY:-}" ]]; then
+  echo "BROWNOUT_SUITE=spike needs BROWNOUT_CAPACITY in workflows/s (0.2 for Qwen3-4B on the two A10G replicas)" >&2
+  exit 1
+fi
 ROOT=$(git rev-parse --show-toplevel)
 SHA=$(git -C "$ROOT" rev-parse "$REF")
 TAG=${BROWNOUT_TAG:-$(date -u +%Y%m%d-%H%M%S)}
@@ -34,7 +38,7 @@ UP=$(./up.sh)
 eval "$UP"
 
 UPSTREAMS=$BROWNOUT_LLM_URL
-if [[ "${BROWNOUT_SUITE:-default}" == realistic ]]; then
+if [[ "${BROWNOUT_SUITE:-default}" == realistic || "${BROWNOUT_SUITE:-default}" == spike ]]; then
   export BROWNOUT_JEV=${BROWNOUT_JEV:-0}
   BROWNOUT_LLM_ON_JEV=${BROWNOUT_LLM_ON_JEV:-1}
 fi
@@ -63,6 +67,11 @@ if [[ "${BROWNOUT_SUITE:-default}" == realistic ]]; then
   cap_s=$(( ${warm_s%.*} + ${meas_s%.*} + 1800 ))
   [[ -z "${BROWNOUT_CAPACITY:-}" ]] || cap_s=900
   AGENT_TIMEOUT=$(( cap_s + ${#pols[@]} * (profile_s + ${tail_s%.*} + 1800) + 1800 ))
+fi
+if [[ "${BROWNOUT_SUITE:-default}" == spike ]]; then
+  IFS=, read -ra pols <<< "${BROWNOUT_POLICIES:-none,uniform,brownout:silent:online,brownout:announced:online}"
+  t=${BROWNOUT_TRACE_S:-240} tail_s=${BROWNOUT_TAIL_S:-600}
+  AGENT_TIMEOUT=$(( 900 + 3600 + ${#pols[@]} * (${t%.*} + ${tail_s%.*} + 1800) + 1800 ))
 fi
 AGENT_TIMEOUT=${BROWNOUT_AGENT_TIMEOUT:-$AGENT_TIMEOUT}
 echo "agent box timeout ${AGENT_TIMEOUT}s" >&2

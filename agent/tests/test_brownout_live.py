@@ -18,7 +18,16 @@ ROOT = BASE.removesuffix("/v1")
 KEY = os.environ.get("LIFELINE_API_KEY", "")
 OUT = Path(os.environ.get("BROWNOUT_OUT", "runs/brownout-live"))
 SUITE = os.environ.get("BROWNOUT_SUITE", "default")
-REALISTIC = SUITE == "realistic"
+SPIKE = SUITE == "spike"
+REALISTIC = SUITE in ("realistic", "spike")
+SPIKE_ENV = {"BROWNOUT_TRACE": "burstgpt", "BROWNOUT_TRACE_START_H": "522.0", "BROWNOUT_TRACE_WINDOW_H": "0.26667",
+             "BROWNOUT_TRACE_S": "240", "BROWNOUT_LOAD": "2.04", "BROWNOUT_TAIL_S": "600"}
+
+
+def env(name: str, default: str | None = None) -> str | None:
+    return os.environ.get(name, SPIKE_ENV.get(name, default) if SPIKE else default)
+
+
 SPECS = os.environ.get("BROWNOUT_POLICIES", ",".join([
     "none", "reject", "uniform",
     "brownout:silent:jev",
@@ -50,15 +59,16 @@ REAL_SPECS = os.environ.get("BROWNOUT_POLICIES", ",".join([
 ])).split(",") if REALISTIC else []
 WORKLOAD = os.environ.get("BROWNOUT_WORKLOAD", workload.DEFAULT_WORKLOAD)
 PROFILE = os.environ.get("BROWNOUT_PROFILE", workload.DEFAULT_PROFILE)
-TRACE = os.environ.get("BROWNOUT_TRACE")
+TRACE = env("BROWNOUT_TRACE")
 BASE_MODEL = os.environ.get("BROWNOUT_MODEL")
 TRACE_ENV = {"--trace-log": "BROWNOUT_TRACE_LOG", "--trace-start-h": "BROWNOUT_TRACE_START_H",
              "--trace-window-h": "BROWNOUT_TRACE_WINDOW_H", "--trace-s": "BROWNOUT_TRACE_S", "--load": "BROWNOUT_LOAD"}
-TRACE_ARGS = ["--trace", TRACE] + [x for k, v in TRACE_ENV.items() if os.environ.get(v)
-                                   for x in (k, os.environ[v])] if TRACE else []
-TRACE_S = float(os.environ.get("BROWNOUT_TRACE_S", "1800"))
+TRACE_ARGS = ["--trace", TRACE] + [x for k, v in TRACE_ENV.items() if env(v) for x in (k, env(v))] if TRACE else []
+TRACE_S = float(env("BROWNOUT_TRACE_S", "1800"))
 SEED = int(os.environ.get("BROWNOUT_SEED", "0"))
-TAIL_S = float(os.environ.get("BROWNOUT_TAIL_S", "1200"))
+TAIL_S = float(env("BROWNOUT_TAIL_S", "1200"))
+WARMUP_N = int(os.environ.get("BROWNOUT_WARMUP_N", "64"))
+WARMUP: dict = {}
 CAP_CONCURRENCY = os.environ.get("BROWNOUT_CAPACITY_CONCURRENCY")
 CAP_WARMUP_S = float(os.environ.get("BROWNOUT_CAPACITY_WARMUP_S", "180"))
 CAP_S = float(os.environ.get("BROWNOUT_CAPACITY_S", "600"))
@@ -199,18 +209,18 @@ def wait_idle(timeout: float = 900) -> bool:
     return False
 
 
-def set_policy(spec: str) -> tuple[str, str, str]:
+def set_policy(spec: str, reset: bool | str = True) -> tuple[str, str, str]:
     policy, notice, predictor = (spec.split(":") + ["", ""])[:3]
     gw("POST", "/admin/policy", json={"policy": policy, "notice": notice or "silent", "predictor": predictor or "jev",
                                         "reject_waiting": REJECT_WAITING, "admit_rate": ADMIT_RATE,
-                                        "admit_burst": ADMIT_BURST, "reset": True})
+                                        "admit_burst": ADMIT_BURST, "reset": reset})
     return policy, notice, predictor
 
 
-def realistic_loadgen(out: Path, *args: str, timeout: float) -> dict:
+def realistic_loadgen(out: Path, *args: str, timeout: float, split: str | None = None) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     p = subprocess.run([sys.executable, "-m", "math_agent.loadgen", "--workload", WORKLOAD, "--level-budgets",
-                        "--seed", str(SEED), "--out", str(out), *args,
+                        "--seed", str(SEED), "--out", str(out), *args, *(["--split", split] if split else []),
                         *(["--model", BASE_MODEL] if BASE_MODEL and "--model" not in args else [])],
                        capture_output=True, text=True, timeout=timeout)
     (out / "loadgen.log").write_text(p.stdout + p.stderr)
@@ -241,9 +251,10 @@ def word_model(stats: dict) -> dict:
 
 def write_realistic() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "results.json").write_text(json.dumps({"suite": "realistic", "workload": WORKLOAD, "profile": None if TRACE else PROFILE,
-                                                  "trace_args": TRACE_ARGS,
-                                                  "seed": SEED, "capacity": CAPACITY, "runs": RESULTS}, indent=2))
+    (OUT / "results.json").write_text(json.dumps({"suite": SUITE, "workload": WORKLOAD, "profile": None if TRACE else PROFILE,
+                                                  "trace_args": TRACE_ARGS, "split": "a" if SPIKE else None,
+                                                  "seed": SEED, "capacity": CAPACITY, "warmup": WARMUP or None,
+                                                  "runs": RESULTS}, indent=2))
     cap = CAPACITY.get("capacity_wf_s")
     arrivals = (f"trace `{' '.join(TRACE_ARGS)}` (profile from the trace, rates x C: `{RESULTS[0]['profile']}`)"
                 if TRACE and RESULTS else f"trace `{' '.join(TRACE_ARGS)}`" if TRACE
@@ -253,6 +264,9 @@ def write_realistic() -> None:
              f"{CAPACITY.get('capacity_think_tok_s')} thinking tokens/s over {CAPACITY.get('replicas')} vLLM "
              f"replica(s), {CAPACITY.get('window_n')} workflows "
              f"in the window, queue present in {CAPACITY.get('queue_frac')} of samples).", "",
+             *([f"Spike suite: problems from split a; every arm starts from a length predictor warmed on "
+                f"{WARMUP.get('n')} split-b workflows ({WARMUP.get('labels')} labels, {WARMUP.get('censored')} "
+                f"censored) under policy none.", ""] if SPIKE else []),
              "| " + " | ".join(REAL_COLUMNS) + " |", "|" + "---|" * len(REAL_COLUMNS)]
     for r in RESULTS:
         lines.append("| " + " | ".join("" if r.get(c) is None else str(r[c]) for c in REAL_COLUMNS) + " |")
@@ -282,6 +296,8 @@ def test_realistic_capacity():
         CAPACITY.update({"capacity_wf_s": float(os.environ["BROWNOUT_CAPACITY"]), "source": "BROWNOUT_CAPACITY"})
         write_realistic()
         return
+    if SPIKE:
+        pytest.fail("the spike suite needs BROWNOUT_CAPACITY (workflows/s)")
     before = gw("GET", "/v1/stats")
     out = OUT / "capacity"
     k = int(CAP_CONCURRENCY) if CAP_CONCURRENCY else 32 * len(before.get("replicas") or [1])
@@ -300,6 +316,20 @@ def test_realistic_capacity():
     assert wait_idle(), "vLLM did not go idle after the capacity run"
 
 
+@pytest.mark.skipif(not SPIKE, reason="set BROWNOUT_SUITE=spike")
+def test_spike_warmup():
+    set_policy("none")
+    assert wait_idle(), "vLLM did not go idle before the warm-up"
+    s = realistic_loadgen(OUT / "warmup", "--rate", "1.0", "--n", str(WARMUP_N), split="b", timeout=3600)
+    gw("POST", "/admin/policy", json={"snapshot": True})
+    vs = gw("GET", "/v1/stats")["classifier"]["versions"].values()
+    WARMUP.update({"n": s["n"], "split": "b", "labels": sum(v["labels"] for v in vs),
+                   "censored": sum(v["censored"] for v in vs), "accuracy": s.get("accuracy"),
+                   "thinking_tokens_mean": s.get("thinking_tokens_mean")})
+    write_realistic()
+    assert s["errors"] == 0 and WARMUP["labels"] > 0
+
+
 @pytest.mark.parametrize("spec", REAL_SPECS)
 def test_realistic_policy(spec):
     if not CAPACITY.get("capacity_wf_s"):
@@ -309,13 +339,15 @@ def test_realistic_policy(spec):
     if spec.split(":")[2:3] == ["jev-learn"] and "learner" not in gw("GET", "/v1/stats")["jev"]:
         pytest.skip("trained Jev: the online Jev learner is not deployed yet")
     wait_idle()
-    policy = set_policy(spec)[0]
+    policy = set_policy(spec, "warm" if SPIKE else True)[0]
     before = gw("GET", "/v1/stats")
+    if SPIKE:
+        assert observed(before) > 0, "the length predictor is cold: test_spike_warmup failed or did not run"
     out = OUT / f"realistic-{spec.replace(':', '-')}{'-' + model if model else ''}"
     arrivals = [*(TRACE_ARGS or ["--profile", PROFILE]), *(["--model", model] if model else [])]
     span = TRACE_S if TRACE else workload.total_s(workload.parse_profile(PROFILE))
     s = realistic_loadgen(out, *arrivals, "--capacity", str(cap), "--tail-s", str(TAIL_S),
-                          timeout=span + TAIL_S + 900)
+                          timeout=span + TAIL_S + 900, split="a" if SPIKE else None)
     profile = workload.parse_profile(s["profile"])
     after = gw("GET", "/v1/stats")
     ps = pressure_of(pressure_since(s["t0"], out), lambda t: workload.phase_at(profile, t - s["t0"]))

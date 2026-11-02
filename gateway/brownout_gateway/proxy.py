@@ -320,7 +320,11 @@ class Gateway:
             self.admit_rate = float(body["admit_rate"])
         if "admit_burst" in body:
             self.admit_burst = float(body["admit_burst"])
-        if body.get("reset"):
+        if body.get("snapshot"):
+            self.clf.snapshot()
+        if body.get("reset") == "warm":
+            self.clf.restore()
+        elif body.get("reset"):
             self.clf.reset()
         self.refill()
         self.admitted.clear()
