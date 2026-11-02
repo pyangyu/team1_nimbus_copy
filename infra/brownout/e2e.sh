@@ -70,7 +70,7 @@ if [[ "${BROWNOUT_SUITE:-default}" == realistic ]]; then
 fi
 if [[ "${BROWNOUT_SUITE:-default}" == spike ]]; then
   IFS=, read -ra pols <<< "${BROWNOUT_POLICIES:-none,uniform,brownout:silent:online,brownout:announced:online}"
-  t=${BROWNOUT_TRACE_S:-240} tail_s=${BROWNOUT_TAIL_S:-600}
+  t=${BROWNOUT_TRACE_S:-240} tail_s=${BROWNOUT_TAIL_S:-900}
   AGENT_TIMEOUT=$(( 900 + 3600 + ${#pols[@]} * (${t%.*} + ${tail_s%.*} + 1800) + 1800 ))
 fi
 AGENT_TIMEOUT=${BROWNOUT_AGENT_TIMEOUT:-$AGENT_TIMEOUT}

@@ -21,7 +21,7 @@ SUITE = os.environ.get("BROWNOUT_SUITE", "default")
 SPIKE = SUITE == "spike"
 REALISTIC = SUITE in ("realistic", "spike")
 SPIKE_ENV = {"BROWNOUT_TRACE": "burstgpt", "BROWNOUT_TRACE_START_H": "522.0", "BROWNOUT_TRACE_WINDOW_H": "0.26667",
-             "BROWNOUT_TRACE_S": "240", "BROWNOUT_LOAD": "2.04", "BROWNOUT_TAIL_S": "600"}
+             "BROWNOUT_TRACE_S": "240", "BROWNOUT_LOAD": "2.04", "BROWNOUT_TAIL_S": "900"}
 
 
 def env(name: str, default: str | None = None) -> str | None:

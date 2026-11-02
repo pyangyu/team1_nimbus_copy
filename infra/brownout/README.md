@@ -111,7 +111,7 @@ hash of the problem id), so the predictor has not seen a measured problem.
 | `BROWNOUT_TRACE_START_H`, `BROWNOUT_TRACE_WINDOW_H` | `522.0`, `0.26667` |
 | `BROWNOUT_TRACE_S` | `240` |
 | `BROWNOUT_LOAD` | `2.04` |
-| `BROWNOUT_TAIL_S` | `600` (long enough for `none` to finish) |
+| `BROWNOUT_TAIL_S` | `900`: long enough for `none` to finish (at 300 s, half of a barely-cut run was cancelled) |
 | `BROWNOUT_WARMUP_N` | `64` |
 
 The other variables are the realistic suite's.
