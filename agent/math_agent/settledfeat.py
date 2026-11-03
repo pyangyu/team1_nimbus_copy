@@ -195,7 +195,7 @@ def evaluate(scored: list[dict], k: int = 10, repeats: int = 5) -> dict:
         out["auc"][f"{label}_lr"] = round(auc(s, [bool(r["silent_correct"]) for r in have]), 4)
     out["lr_coefficients"] = coefficients([[r["feat"][n] for n in FEATURES] for r in scored], y, FEATURES)
     out["early_exit"]["oracle"] = oracle_exit(scored)
-    for name in ("jev_done", "deer", "feat_lr", "feat_gbt"):
+    for name in ("jev_settled", "jev_done", "deer", "feat_lr", "feat_gbt"):
         for tau in THRESHOLDS:
             out["early_exit"][f"{name}>={tau}"] = early_exit(scored, name, tau)
     return out
