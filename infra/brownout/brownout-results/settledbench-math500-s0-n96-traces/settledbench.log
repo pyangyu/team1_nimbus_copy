@@ -1,0 +1,318 @@
+  1/83 test/prealgebra/1388.json rows=4 calls=803 tokens=499136
+  2/83 test/geometry/473.json rows=4 calls=824 tokens=504555
+  3/83 test/prealgebra/1973.json rows=4 calls=850 tokens=514204
+  4/83 test/algebra/305.json rows=4 calls=940 tokens=547090
+  5/83 test/geometry/615.json rows=5 calls=978 tokens=560928
+  6/83 test/number_theory/631.json rows=5 calls=1000 tokens=568788
+  7/83 test/prealgebra/993.json rows=5 calls=1011 tokens=572492
+  8/83 test/geometry/817.json rows=5 calls=1017 tokens=574965
+  9/83 test/prealgebra/153.json rows=5 calls=1023 tokens=577390
+ 10/83 test/algebra/2253.json rows=5 calls=1028 tokens=579454
+ 11/83 test/number_theory/516.json rows=5 calls=1041 tokens=584534
+ 12/83 test/prealgebra/465.json rows=5 calls=1044 tokens=585403
+ 13/83 test/algebra/893.json rows=5 calls=1047 tokens=586205
+ 14/83 test/counting_and_probability/282.json rows=5 calls=1049 tokens=586633
+ 15/83 test/counting_and_probability/230.json rows=5 calls=1051 tokens=587097
+ 16/83 test/prealgebra/914.json rows=5 calls=1055 tokens=588923
+ 17/83 test/counting_and_probability/188.json rows=5 calls=1056 tokens=589947
+ 18/83 test/algebra/2043.json rows=5 calls=1057 tokens=590652
+ 19/83 test/precalculus/703.json rows=5 calls=1059 tokens=591724
+ 20/83 test/algebra/2232.json rows=5 calls=1063 tokens=592199
+ 21/83 test/geometry/172.json rows=5 calls=1065 tokens=593271
+ 22/83 test/prealgebra/2086.json rows=5 calls=1069 tokens=594678
+ 23/83 test/counting_and_probability/377.json rows=5 calls=1073 tokens=596118
+ 24/83 test/intermediate_algebra/1544.json rows=5 calls=1075 tokens=596878
+ 25/83 test/intermediate_algebra/1994.json rows=5 calls=1077 tokens=597520
+ 26/83 test/precalculus/902.json rows=5 calls=1078 tokens=598078
+ 27/83 test/intermediate_algebra/362.json rows=5 calls=1080 tokens=599150
+ 28/83 test/intermediate_algebra/345.json rows=5 calls=1082 tokens=600222
+ 29/83 test/number_theory/1128.json rows=5 calls=1083 tokens=600792
+ 30/83 test/precalculus/499.json rows=5 calls=1084 tokens=601603
+ 31/83 test/number_theory/72.json rows=5 calls=1089 tokens=602235
+ 32/83 test/prealgebra/1044.json rows=5 calls=1093 tokens=603281
+ 33/83 test/number_theory/1090.json rows=5 calls=1094 tokens=603947
+ 34/83 test/intermediate_algebra/2152.json rows=5 calls=1099 tokens=605514
+ 35/83 test/counting_and_probability/870.json rows=5 calls=1101 tokens=606960
+ 36/83 test/number_theory/1002.json rows=5 calls=1105 tokens=608128
+ 37/83 test/counting_and_probability/159.json rows=5 calls=1108 tokens=609053
+ 38/83 test/algebra/2176.json rows=5 calls=1115 tokens=611327
+ 39/83 test/prealgebra/2066.json rows=5 calls=1116 tokens=611760
+ 40/83 test/algebra/291.json rows=5 calls=1117 tokens=612234
+ 41/83 test/algebra/2391.json rows=6 calls=1122 tokens=613196
+ 42/83 test/intermediate_algebra/558.json rows=5 calls=1125 tokens=614316
+ 43/83 test/number_theory/1287.json rows=5 calls=1127 tokens=614838
+ 44/83 test/precalculus/920.json rows=5 calls=1128 tokens=615862
+ 45/83 test/intermediate_algebra/1510.json rows=5 calls=1131 tokens=616982
+ 46/83 test/number_theory/488.json rows=5 calls=1135 tokens=618602
+ 47/83 test/algebra/2193.json rows=5 calls=1136 tokens=619181
+ 48/83 test/number_theory/533.json rows=6 calls=1138 tokens=619781
+ 49/83 test/intermediate_algebra/582.json rows=5 calls=1139 tokens=620805
+ 50/83 test/intermediate_algebra/1508.json rows=5 calls=1140 tokens=621755
+ 51/83 test/intermediate_algebra/90.json rows=5 calls=1144 tokens=622666
+ 52/83 test/prealgebra/1423.json rows=6 calls=1150 tokens=624321
+ 53/83 test/algebra/2570.json rows=6 calls=1153 tokens=624867
+ 54/83 test/intermediate_algebra/1462.json rows=5 calls=1157 tokens=626515
+ 55/83 test/intermediate_algebra/986.json rows=5 calls=1158 tokens=627273
+ 56/83 test/algebra/529.json rows=6 calls=1160 tokens=627845
+ 57/83 test/geometry/627.json rows=5 calls=1161 tokens=628741
+ 58/83 test/geometry/183.json rows=5 calls=1165 tokens=629909
+ 59/83 test/intermediate_algebra/1849.json rows=5 calls=1167 tokens=630981
+ 60/83 test/intermediate_algebra/2146.json rows=5 calls=1172 tokens=633427
+ 61/83 test/precalculus/768.json rows=5 calls=1175 tokens=634547
+ 62/83 test/algebra/1078.json rows=6 calls=1177 tokens=635320
+ 63/83 test/intermediate_algebra/1166.json rows=5 calls=1179 tokens=636392
+ 64/83 test/algebra/1934.json rows=6 calls=1183 tokens=637965
+ 65/83 test/algebra/2058.json rows=6 calls=1185 tokens=638602
+ 66/83 test/algebra/2486.json rows=6 calls=1187 tokens=639035
+ 67/83 test/counting_and_probability/1003.json rows=6 calls=1189 tokens=640107
+ 68/83 test/intermediate_algebra/1354.json rows=5 calls=1191 tokens=640989
+ 69/83 test/algebra/1184.json rows=6 calls=1192 tokens=641377
+ 70/83 test/number_theory/1257.json rows=6 calls=1195 tokens=642102
+ 71/83 test/algebra/1837.json rows=6 calls=1196 tokens=642911
+ 72/83 test/number_theory/149.json rows=6 calls=1197 tokens=643491
+ 73/83 test/intermediate_algebra/1279.json rows=5 calls=1201 tokens=644615
+ 74/83 test/algebra/621.json rows=6 calls=1203 tokens=645056
+ 75/83 test/algebra/873.json rows=6 calls=1205 tokens=645625
+ 76/83 test/prealgebra/1251.json rows=6 calls=1206 tokens=646116
+ 77/83 test/algebra/791.json rows=6 calls=1206 tokens=647037
+ 78/83 test/counting_and_probability/216.json rows=6 calls=1206 tokens=647731
+ 79/83 test/intermediate_algebra/1981.json rows=7 calls=1206 tokens=648269
+ 80/83 test/number_theory/1065.json rows=6 calls=1206 tokens=649028
+ 81/83 test/algebra/1578.json rows=7 calls=1206 tokens=649796
+ 82/83 test/algebra/246.json rows=6 calls=1206 tokens=650488
+ 83/83 test/counting_and_probability/10.json rows=7 calls=1208 tokens=652584
+{
+  "rows": 438,
+  "problems": 83,
+  "uncut_accuracy": 0.7349,
+  "mean_used": 3246.1,
+  "natural": 41,
+  "rows_uncut_correct": 325,
+  "silent_kept_right": 0.9138,
+  "auc": {
+    "jev_settled": {
+      "n": 325,
+      "auc": 0.7768157768157768
+    },
+    "jev_done": {
+      "n": 325,
+      "auc": 0.7058682058682059
+    },
+    "deer": {
+      "n": 325,
+      "auc": 0.6325156325156325
+    },
+    "probe_match": {
+      "n": 325,
+      "auc": 0.6257816257816258
+    }
+  },
+  "by_depth": {
+    "frac<=0.25": {
+      "n": 117,
+      "silent_kept_right": 0.829,
+      "jev_settled_mean": 0.528,
+      "jev_done_mean": 0.508,
+      "deer_mean": 0.829,
+      "probe_match_mean": 0.291
+    },
+    "0.25<frac<=0.5": {
+      "n": 74,
+      "silent_kept_right": 0.946,
+      "jev_settled_mean": 0.65,
+      "jev_done_mean": 0.657,
+      "deer_mean": 0.916,
+      "probe_match_mean": 0.784
+    },
+    "0.5<frac<=0.75": {
+      "n": 73,
+      "silent_kept_right": 0.973,
+      "jev_settled_mean": 0.681,
+      "jev_done_mean": 0.707,
+      "deer_mean": 0.918,
+      "probe_match_mean": 0.89
+    },
+    "frac>0.75": {
+      "n": 61,
+      "silent_kept_right": 0.967,
+      "jev_settled_mean": 0.698,
+      "jev_done_mean": 0.723,
+      "deer_mean": 0.928,
+      "probe_match_mean": 0.934
+    }
+  },
+  "early_exit": {
+    "none": {
+      "accuracy": 0.7349,
+      "mean_thinking": 3246.1,
+      "exited": 0,
+      "n": 83
+    },
+    "oracle": {
+      "accuracy": 0.7831,
+      "mean_thinking": 1330.6,
+      "exited": 65,
+      "n": 83
+    },
+    "jev_settled>=0.5": {
+      "accuracy": 0.6627,
+      "mean_thinking": 952.7,
+      "exited": 78,
+      "n": 83
+    },
+    "jev_settled>=0.6": {
+      "accuracy": 0.7108,
+      "mean_thinking": 2053.7,
+      "exited": 61,
+      "n": 83
+    },
+    "jev_settled>=0.7": {
+      "accuracy": 0.7229,
+      "mean_thinking": 2629.9,
+      "exited": 46,
+      "n": 83
+    },
+    "jev_settled>=0.8": {
+      "accuracy": 0.7229,
+      "mean_thinking": 2942.8,
+      "exited": 32,
+      "n": 83
+    },
+    "jev_settled>=0.9": {
+      "accuracy": 0.7349,
+      "mean_thinking": 3222.4,
+      "exited": 4,
+      "n": 83
+    },
+    "jev_settled>=0.95": {
+      "accuracy": 0.7349,
+      "mean_thinking": 3237.3,
+      "exited": 2,
+      "n": 83
+    },
+    "jev_done>=0.5": {
+      "accuracy": 0.6506,
+      "mean_thinking": 1384.1,
+      "exited": 72,
+      "n": 83
+    },
+    "jev_done>=0.6": {
+      "accuracy": 0.6867,
+      "mean_thinking": 1807.2,
+      "exited": 64,
+      "n": 83
+    },
+    "jev_done>=0.7": {
+      "accuracy": 0.6988,
+      "mean_thinking": 2286.4,
+      "exited": 56,
+      "n": 83
+    },
+    "jev_done>=0.8": {
+      "accuracy": 0.7349,
+      "mean_thinking": 2777.4,
+      "exited": 41,
+      "n": 83
+    },
+    "jev_done>=0.9": {
+      "accuracy": 0.7349,
+      "mean_thinking": 3196.6,
+      "exited": 7,
+      "n": 83
+    },
+    "jev_done>=0.95": {
+      "accuracy": 0.7349,
+      "mean_thinking": 3246.1,
+      "exited": 0,
+      "n": 83
+    },
+    "deer>=0.5": {
+      "accuracy": 0.6386,
+      "mean_thinking": 336.5,
+      "exited": 83,
+      "n": 83
+    },
+    "deer>=0.6": {
+      "accuracy": 0.6265,
+      "mean_thinking": 496.1,
+      "exited": 82,
+      "n": 83
+    },
+    "deer>=0.7": {
+      "accuracy": 0.6265,
+      "mean_thinking": 591.5,
+      "exited": 81,
+      "n": 83
+    },
+    "deer>=0.8": {
+      "accuracy": 0.6265,
+      "mean_thinking": 934.1,
+      "exited": 78,
+      "n": 83
+    },
+    "deer>=0.9": {
+      "accuracy": 0.6747,
+      "mean_thinking": 1664.4,
+      "exited": 62,
+      "n": 83
+    },
+    "deer>=0.95": {
+      "accuracy": 0.6988,
+      "mean_thinking": 2308.7,
+      "exited": 41,
+      "n": 83
+    },
+    "probe_match>=0.5": {
+      "accuracy": 0.6988,
+      "mean_thinking": 1484.4,
+      "exited": 75,
+      "n": 83
+    },
+    "probe_match>=0.6": {
+      "accuracy": 0.6988,
+      "mean_thinking": 1484.4,
+      "exited": 75,
+      "n": 83
+    },
+    "probe_match>=0.7": {
+      "accuracy": 0.6988,
+      "mean_thinking": 1484.4,
+      "exited": 75,
+      "n": 83
+    },
+    "probe_match>=0.8": {
+      "accuracy": 0.6988,
+      "mean_thinking": 1484.4,
+      "exited": 75,
+      "n": 83
+    },
+    "probe_match>=0.9": {
+      "accuracy": 0.6988,
+      "mean_thinking": 1484.4,
+      "exited": 75,
+      "n": 83
+    },
+    "probe_match>=0.95": {
+      "accuracy": 0.6988,
+      "mean_thinking": 1484.4,
+      "exited": 75,
+      "n": 83
+    }
+  },
+  "jev_ms_mean": 441.9,
+  "jev_missing": 0,
+  "errors": 0,
+  "calls": 1208,
+  "completion_tokens": 652584,
+  "wall_s": 2333.1,
+  "budget": 4096,
+  "dataset": "math500",
+  "seed": 0,
+  "model": "Qwen/Qwen3-4B",
+  "jev": {
+    "calls": 521,
+    "failures": 0,
+    "last_error": null
+  }
+}
+wrote /opt/brownout/results/settledbench-math500-s0-n96-traces/settledbench
