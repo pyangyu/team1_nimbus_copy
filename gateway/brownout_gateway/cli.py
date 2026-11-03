@@ -7,6 +7,7 @@ from pathlib import Path
 import httpx
 
 from budget_classifier import BudgetClassifier, Buckets, JevPrior
+from budget_classifier.tailfeat import FeatureJudge
 
 from .controller import MODES, NOTICES, POLICIES, PREDICTORS, Controller
 from .pressure import PressureMonitor
@@ -35,7 +36,8 @@ def build(args: argparse.Namespace) -> tuple[Gateway, str | None]:
                  notice_text=args.notice_text, serial_timeout=args.serial_timeout, http=http,
                  labels=args.labels, probe_concurrency=args.probe_concurrency, probe_edges=args.probe_edges,
                  judge_from=args.judge_from, judge_every=args.judge_every, judge_signal=args.judge_signal,
-                 judge_always=args.judge_always)
+                 judge_always=args.judge_always, judge_backend=args.judge,
+                 judge_feat=FeatureJudge.load(args.judge_weights))
     return gw, args.state
 
 
@@ -61,6 +63,10 @@ def cli(argv: list[str] | None = None) -> None:
     ap.add_argument("--judge-signal", choices=("settled", "done", "mean"), default="settled",
                     help="settled: which of Jev's answers is P(settled)")
     ap.add_argument("--judge-always", action="store_true", help="judge in every policy (logged; only settled cuts use it)")
+    ap.add_argument("--judge", choices=("jev", "feat"), default="jev",
+                    help="settled: who judges the thinking so far: Jev on its own GPU, or the trained "
+                         "surface-feature model (budget_classifier.tailfeat) inline on this CPU")
+    ap.add_argument("--judge-weights", help="feat: weights json (default: the one shipped with budget_classifier)")
     ap.add_argument("--bank", action="store_true",
                     help="ranked/settled: keep finished requests' shed credit in a bank (sheds less under sustained pressure)")
     ap.add_argument("--exit-at", type=float, default=None,

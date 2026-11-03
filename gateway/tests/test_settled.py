@@ -173,3 +173,37 @@ def test_judge_value_follows_the_signal():
     assert js.value({"settled": 0.8}) == 0.8 and js.value({"done": 0.4}) == 0.4
     js.signal = "done"
     assert js.value({"settled": 0.8, "done": 0.4}) == 0.4
+
+
+def test_feature_judge_scores_inline_without_jev(run, tmp_path):
+    from budget_classifier.tailfeat import FeatureJudge
+    gw, fake, c = make(jev=None, mode="settled", predictor="online", lengths={"hard": 700},
+                       log_path=tmp_path / "gw.jsonl", judge_from=100, judge_every=200,
+                       judge_backend="feat", judge_feat=FeatureJudge.load())
+    gw.monitor.set(1, 10)
+
+    async def go():
+        t = asyncio.create_task(gw.controller.run())
+        r = await c.post("/v1/completions", json=body("hard"), headers=think_headers())
+        t.cancel()
+        return r
+    out = parse(run(go()))
+    assert out["info"]["judgments"] >= 2 and 0.0 <= out["info"]["settled"] <= 1.0
+    st = gw.stats()["judge"]
+    assert st["enabled"] and st["backend"] == "feat" and st["answered"] == out["info"]["judgments"]
+    assert st["failed"] == 0 and st["queued"] == 0 and st["workers"] == 0 and st["mean_call_ms"] < 50
+    rows = [json.loads(l) for l in (tmp_path / "gw.jsonl").read_text().splitlines()]
+    jrows = [r for r in rows if r.get("judge")]
+    assert jrows and jrows[0]["backend"] == "feat" and jrows[0]["used"] == 100 and jrows[0]["done"] is None
+
+
+def test_admin_switches_the_judge_backend(run):
+    gw, fake, c = make(jev=None, mode="settled")
+    assert not gw.judge.enabled
+
+    async def go():
+        r = await c.post("/admin/policy", json={"policy": "brownout", "judge": "feat"}, headers=think_headers())
+        bad = await c.post("/admin/policy", json={"policy": "brownout", "judge": "coin"}, headers=think_headers())
+        return r.status_code, bad.status_code
+    assert run(go()) == (200, 400)
+    assert gw.judge.backend == "feat" and gw.judge.enabled and gw.judge.feat is not None

@@ -42,7 +42,7 @@ class Gateway:
                  http: httpx.AsyncClient | None = None, labels: str = "length",
                  probe_concurrency: int = 2, probe_edges: int = 3,
                  judge_from: int = 256, judge_every: int = 512, judge_signal: str = "settled",
-                 judge_always: bool = False):
+                 judge_always: bool = False, judge_backend: str = "jev", judge_feat=None):
         if labels not in ("length", "needed"):
             raise ValueError("labels must be 'length' or 'needed'")
         self.upstream = upstream.rstrip("/")
@@ -50,7 +50,8 @@ class Gateway:
         self.jevq = JevScheduler(clf, controller, concurrency=clf.jev.max_inflight if clf.jev else 1)
         self.labels = labels
         self.prober = Prober(self, concurrency=probe_concurrency, max_edges=probe_edges, enabled=labels == "needed")
-        self.judge = JudgeScheduler(self, concurrency=clf.jev.max_inflight if clf.jev else 1, signal=judge_signal)
+        self.judge = JudgeScheduler(self, concurrency=clf.jev.max_inflight if clf.jev else 1, signal=judge_signal,
+                                    backend=judge_backend, feat=judge_feat)
         self.judge_from, self.judge_every, self.judge_always = judge_from, judge_every, judge_always
         self.upstream_key, self.client_key = upstream_key, client_key
         self.reject_waiting, self.defer_timeout, self.defer_poll = reject_waiting, defer_timeout, defer_poll
@@ -180,6 +181,8 @@ class Gateway:
         first = a.limit
         up = {**body, "max_tokens": a.limit, "stream": True,
               "stream_options": {"include_usage": True, "continuous_usage_stats": True}}
+        if self.judging and self.judge.wants_logprobs:
+            up["logprobs"] = 1  # the feature judge reads the model's own token logprobs; never forwarded
         r = await self._open(up, h)
         if r.status_code >= 400:
             content = await r.aread()
@@ -202,6 +205,7 @@ class Gateway:
         cap = a.limit
         marks: dict[int, int] = {}  # bucket edge (tokens) -> characters of thinking streamed when it was crossed
         nchars = 0
+        lps: list[float | None] = []
         edges = self.clf.buckets.edges[1:]
         next_judge = self.judge_from
         try:
@@ -223,6 +227,8 @@ class Gateway:
                                 seg += 1
                         if ch.get("finish_reason"):
                             finish = ch["finish_reason"]
+                        if ch.get("logprobs"):
+                            lps.extend(ch["logprobs"].get("token_logprobs") or [])
                     if u:
                         seg = u.get("completion_tokens", seg)
                         if prompt_tokens is None:
@@ -236,7 +242,7 @@ class Gateway:
                                 marks[e] = nchars
                         if a.used >= next_judge and self.judging:
                             next_judge = a.used + self.judge_every
-                            self.judge.submit(a, up["prompt"], "".join(parts), a.used)
+                            self.judge.submit(a, up["prompt"], "".join(parts), a.used, lps)
                         yield sse({"object": "text_completion", "model": up.get("model"),
                                    "choices": [{"index": 0, "text": text, "finish_reason": None}]})
                     if a.limit < cap and finish is None:
@@ -348,6 +354,15 @@ class Gateway:
             except ValueError as e:
                 return JSONResponse({"error": str(e)}, status_code=400)
             self.judge.signal = body["judge_signal"]
+        if "judge" in body:
+            try:
+                JudgeScheduler(self, backend=body["judge"])
+            except ValueError as e:
+                return JSONResponse({"error": str(e)}, status_code=400)
+            self.judge.backend = body["judge"]
+            if self.judge.backend == "feat" and self.judge.feat is None:
+                from budget_classifier.tailfeat import FeatureJudge
+                self.judge.feat = FeatureJudge.load()
         if "reject_waiting" in body:
             self.reject_waiting = float(body["reject_waiting"])
         if "admit_rate" in body:

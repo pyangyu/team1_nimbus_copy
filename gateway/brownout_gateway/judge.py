@@ -18,9 +18,12 @@ import json
 import time
 from dataclasses import dataclass, field
 
+from budget_classifier.tailfeat import FeatureJudge
+
 from .controller import Active
 
 SIGNALS = ("settled", "done", "mean")
+BACKENDS = ("jev", "feat")
 
 
 @dataclass
@@ -30,15 +33,22 @@ class Judgment:
     thinking: str
     used: int
     t0: float = field(default_factory=time.monotonic)
+    logprobs: list | None = None
 
 
 class JudgeScheduler:
     """Latest-wins queue: a request waiting to be judged is judged on its newest thinking, once."""
 
-    def __init__(self, gw, *, concurrency: int = 4, signal: str = "settled"):
+    def __init__(self, gw, *, concurrency: int = 4, signal: str = "settled", backend: str = "jev",
+                 feat: FeatureJudge | None = None):
         if signal not in SIGNALS:
             raise ValueError(f"judge signal must be one of {SIGNALS}")
+        if backend not in BACKENDS:
+            raise ValueError(f"judge backend must be one of {BACKENDS}")
         self.gw, self.concurrency, self.signal = gw, concurrency, signal
+        # feat: the trained surface-feature judge (budget_classifier.tailfeat), scored inline on the gateway
+        # CPU from the streamed thinking and its token logprobs, no model call
+        self.backend, self.feat = backend, feat
         self.jobs: dict[str, Judgment] = {}
         self.workers = 0
         self.counts = {"submitted": 0, "replaced": 0, "asked": 0, "answered": 0, "failed": 0, "after_finish": 0,
@@ -46,15 +56,28 @@ class JudgeScheduler:
 
     @property
     def enabled(self) -> bool:
+        if self.backend == "feat":
+            return self.feat is not None
         return self.gw.clf.jev is not None
 
-    def submit(self, a: Active, prompt: str, thinking: str, used: int) -> bool:
+    @property
+    def wants_logprobs(self) -> bool:
+        return self.backend == "feat" and self.feat is not None
+
+    def submit(self, a: Active, prompt: str, thinking: str, used: int, logprobs: list | None = None) -> bool:
         if not self.enabled:
             return False
+        self.counts["submitted"] += 1
+        if self.backend == "feat":
+            t0 = time.perf_counter()
+            v = self.feat.score(thinking, logprobs or [], used)
+            self.counts["asked"] += 1
+            self._record(a, used, {"settled": v, "done": None, "level": None,
+                                   "ms": round((time.perf_counter() - t0) * 1000, 3)}, v)
+            return True
         if a.rid in self.jobs:
             self.counts["replaced"] += 1
         self.jobs[a.rid] = Judgment(a, prompt, thinking, used)
-        self.counts["submitted"] += 1
         if self.workers < self.concurrency:
             self.workers += 1
             asyncio.get_running_loop().create_task(self._work())
@@ -104,13 +127,16 @@ class JudgeScheduler:
         if v is None:
             self.counts["failed"] += 1
             return
+        self._record(a, job.used, out, v)
+
+    def _record(self, a: Active, used: int, out: dict, v: float) -> None:
         self.counts["answered"] += 1
         self.counts["call_ms"] += out.get("ms", 0.0)
         self.counts["settled_sum"] += v
-        a.settled, a.judged_at = float(v), job.used
+        a.settled, a.judged_at = float(v), used
         a.judgments += 1
         if self.gw.log is not None:
-            row = {"judge": True, "rid": a.rid, "used": job.used, "settled": out.get("settled"),
+            row = {"judge": True, "rid": a.rid, "used": used, "backend": self.backend, "settled": out.get("settled"),
                    "done": out.get("done"), "level": out.get("level"), "value": round(v, 4), "ms": out.get("ms"),
                    "limit": a.limit, "cut_from": a.cut_from, "p": round(self.gw.monitor.p, 3),
                    "policy": self.gw.controller.policy, "mode": self.gw.controller.mode, "ts": time.time()}
@@ -119,7 +145,8 @@ class JudgeScheduler:
 
     def stats(self) -> dict:
         n = self.counts["answered"]
-        return {**self.counts, "enabled": self.enabled, "signal": self.signal, "queued": len(self.jobs),
+        return {**self.counts, "enabled": self.enabled, "signal": self.signal, "backend": self.backend,
+                "queued": len(self.jobs),
                 "workers": self.workers, "wait_s": round(self.counts["wait_s"], 3),
                 "mean_call_ms": round(self.counts["call_ms"] / n, 1) if n else None,
                 "mean_settled": round(self.counts["settled_sum"] / n, 4) if n else None}

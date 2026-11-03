@@ -32,8 +32,9 @@ HARD_SPECS = os.environ.get("BROWNOUT_HARD_POLICIES", ",".join([
     "brownout:announced:online",
     "brownout:announced:oracle",
 ])).split(",")
-# a spec is policy[:notice[:predictor[:cut]]][:f<frac>][:e<exit>]; cut = proportional (default), ranked or
-# settled (Jev re-asked mid-decode); f caps the shed fraction, e sets the settled exit threshold.
+# a spec is policy[:notice[:predictor[:cut]]][:f<frac>][:e<exit>][:j<judge>]; cut = proportional (default),
+# ranked or settled (the judge re-asked mid-decode); f caps the shed fraction, e sets the settled exit threshold,
+# j picks the judge (jjev = Jev on its GPU, jfeat = the trained surface-feature model on the gateway CPU).
 # BROWNOUT_POLICIES=skip runs no sweep on the first dataset.
 SPECS = [s for s in SPECS if s and s != "skip"]
 HARD_SPECS = [s for s in HARD_SPECS if s and s != "skip"]
@@ -63,7 +64,7 @@ LOADGEN_ARGS = shlex.split(os.environ.get("BROWNOUT_LOADGEN_ARGS", ""))  # e.g. 
 HARD_LOADGEN_ARGS = shlex.split(os.environ.get("BROWNOUT_HARD_LOADGEN_ARGS", os.environ.get("BROWNOUT_LOADGEN_ARGS", "")))
 COUNTERS = ("think", "rejected", "deferred", "cut", "announced", "upstream_errors", "serial_waits", "serial_wait_s",
             "oracle_hits", "oracle_misses")
-COLUMNS = ("dataset", "policy", "seed", "max_frac", "exit_at", "n", "accuracy", "deadline_met", "correct_and_on_time", "admitted_correct_and_on_time",
+COLUMNS = ("dataset", "policy", "seed", "max_frac", "exit_at", "judge", "n", "accuracy", "deadline_met", "correct_and_on_time", "admitted_correct_and_on_time",
            "rejected_workflows",
            "latency_p50_s", "latency_p90_s", "thinking_tokens_mean", "think", "cut", "announced",
            "rejected", "pressured_samples", "jev_before_first_token", "jev_during_decode", "jev_tier_lowered",
@@ -133,10 +134,13 @@ def test_policy_under_load(dataset, spec, seed):
     n, rate = sw["n"], sw["rate"]
     parts = spec.split(":")
     # optional trailing f<frac> (shed cap, default BROWNOUT_MAX_FRAC) and e<exit> (settled exit threshold)
-    max_frac, exit_at = MAX_FRAC, None
-    while parts and parts[-1][:1] in ("f", "e") and parts[-1][1:].replace(".", "", 1).isdigit():
+    max_frac, exit_at, judge = MAX_FRAC, None, "jev"
+    while parts and ((parts[-1][:1] in ("f", "e") and parts[-1][1:].replace(".", "", 1).isdigit())
+                     or parts[-1] in ("jjev", "jfeat")):
         tok = parts.pop()
-        if tok[0] == "f":
+        if tok[0] == "j":
+            judge = tok[1:]
+        elif tok[0] == "f":
             max_frac = float(tok[1:])
         else:
             exit_at = float(tok[1:])
@@ -145,7 +149,7 @@ def test_policy_under_load(dataset, spec, seed):
         pytest.skip("trained Jev: the online Jev learner is not deployed yet")
     gw("POST", "/admin/policy", json={"policy": policy, "notice": notice or "silent", "predictor": predictor or "jev",
                                         "cut": mode or "proportional", "max_frac": max_frac,
-                                        "exit_at": exit_at, "judge_signal": JUDGE_SIGNAL, "bank": BANK,
+                                        "exit_at": exit_at, "judge_signal": JUDGE_SIGNAL, "judge": judge, "bank": BANK,
                                         "reject_waiting": REJECT_WAITING, "admit_rate": ADMIT_RATE,
                                         "admit_burst": ADMIT_BURST, "reset": True})
     before = gw("GET", "/v1/stats")
@@ -165,7 +169,7 @@ def test_policy_under_load(dataset, spec, seed):
     hist = [a - b for a, b in zip(after["pressure"]["p_hist_deciles"], before["pressure"]["p_hist_deciles"])]
     oracle = d["oracle_hits"] + d["oracle_misses"]
     jd = {k: after["judge"][k] - before["judge"][k] for k in ("answered", "call_ms", "settled_sum")}
-    row = {"dataset": dataset, "policy": spec, "seed": seed, "max_frac": max_frac, "exit_at": exit_at,
+    row = {"dataset": dataset, "policy": spec, "seed": seed, "max_frac": max_frac, "exit_at": exit_at, "judge": judge,
            **{k: s.get(k) for k in COLUMNS if k in s},
            "rejected_workflows": s.get("rejected"),
            **d, "pressured_samples": sum(hist[1:]), "observed": observed(after) - observed(before),
