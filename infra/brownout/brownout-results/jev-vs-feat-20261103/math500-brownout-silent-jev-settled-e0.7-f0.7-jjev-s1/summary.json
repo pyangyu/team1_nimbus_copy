@@ -1,0 +1,46 @@
+{
+  "n": 32,
+  "accuracy": 0.6875,
+  "errors": 0,
+  "rejected": 0,
+  "latency_p50_s": 429.0514,
+  "latency_p90_s": 536.0507,
+  "latency_p99_s": 545.7164,
+  "rounds_mean": 1.8438,
+  "llm_calls_mean": 3.5938,
+  "prompt_tokens_mean": 548.7188,
+  "thinking_tokens_mean": 7418.5312,
+  "answer_tokens_mean": 1410.3438,
+  "deadline_met": 0.875,
+  "correct_and_on_time": 0.5938,
+  "rate": 2.0,
+  "wall_s": 560.2,
+  "arrivals": "poisson",
+  "burstiness": 0.736679934196349,
+  "by_source": {
+    "math500": {
+      "n": 32,
+      "deadline_met": 0.875,
+      "accuracy": 0.6875,
+      "correct_and_on_time": 0.5938,
+      "thinking_tokens_mean": 7418.5312
+    }
+  },
+  "by_slack": {
+    "1.5": {
+      "n": 10,
+      "deadline_met": 0.6,
+      "accuracy": 0.9
+    },
+    "3.0": {
+      "n": 8,
+      "deadline_met": 1,
+      "accuracy": 0.625
+    },
+    "6.0": {
+      "n": 14,
+      "deadline_met": 1,
+      "accuracy": 0.5714
+    }
+  }
+}
