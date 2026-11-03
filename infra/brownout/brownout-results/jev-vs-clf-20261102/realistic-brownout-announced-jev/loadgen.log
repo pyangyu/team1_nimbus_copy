@@ -1,0 +1,301 @@
+   1/49 OK on-time   47.8s slack=3.0
+   2/49 OK on-time   50.4s slack=1.5
+   3/49 OK on-time   39.8s slack=6.0
+   4/49 OK on-time   88.9s slack=3.0
+   5/49 OK on-time   52.7s slack=3.0
+   6/49 OK on-time   23.6s slack=1.5
+   7/49 OK on-time   97.8s slack=6.0
+   8/49 OK on-time   53.5s slack=3.0
+   9/49 OK on-time   44.2s slack=6.0
+  10/49 OK on-time   68.3s slack=1.5
+  11/49 OK on-time   40.7s slack=1.5
+  12/49 OK on-time   26.4s slack=3.0
+  13/49 OK on-time   68.2s slack=1.5
+  14/49 OK on-time   67.5s slack=3.0
+  15/49 OK on-time  111.8s slack=1.5
+  16/49 OK on-time   93.6s slack=1.5
+  17/49 OK on-time   61.6s slack=6.0
+  18/49 OK on-time   47.2s slack=1.5
+  19/49 OK on-time   49.3s slack=1.5
+  20/49 OK on-time   80.6s slack=3.0
+  21/49 OK on-time   44.1s slack=6.0
+  22/49 OK on-time   88.2s slack=6.0
+  23/49 OK on-time   81.1s slack=6.0
+  24/49 OK on-time   98.0s slack=3.0
+  25/49 OK on-time   56.0s slack=3.0
+  26/49 OK on-time   23.2s slack=1.5
+  27/49 OK on-time   96.3s slack=6.0
+  28/49 OK on-time   96.1s slack=1.5
+  29/49 OK on-time   28.5s slack=3.0
+  30/49 OK on-time   53.7s slack=3.0
+  31/49 OK on-time   92.5s slack=6.0
+  32/49 OK on-time   97.5s slack=1.5
+  33/49 OK on-time  115.1s slack=6.0
+  34/49 OK on-time  122.0s slack=6.0
+  35/49 OK on-time  211.3s slack=1.5
+  36/49 X  on-time  199.2s slack=1.5
+  37/49 X  on-time  133.4s slack=1.5
+  38/49 OK on-time  137.7s slack=6.0
+  39/49 OK on-time  152.7s slack=3.0
+  40/49 OK on-time  146.4s slack=6.0
+  41/49 OK on-time  220.7s slack=3.0
+  42/49 X  on-time  138.1s slack=1.5
+  43/49 OK on-time  267.8s slack=1.5
+  44/49 OK on-time  183.8s slack=1.5
+  45/49 OK on-time  213.8s slack=3.0
+  46/49 OK on-time  213.0s slack=6.0
+  47/49 OK on-time  206.8s slack=1.5
+  48/49 X  on-time  227.5s slack=1.5
+  49/49 X  on-time  188.1s slack=6.0
+{
+  "n": 49,
+  "accuracy": 0.898,
+  "errors": 0,
+  "rejected": 0,
+  "cancelled": 0,
+  "latency_p50_s": 92.5382,
+  "latency_p90_s": 211.3389,
+  "latency_p95_s": 220.6526,
+  "latency_p99_s": 267.8256,
+  "rounds_mean": 1.6939,
+  "llm_calls_mean": 3.5714,
+  "prompt_tokens_mean": 462.9592,
+  "thinking_tokens_mean": 2111.0816,
+  "answer_tokens_mean": 1058.5306,
+  "deadline_met": 1,
+  "correct_and_on_time": 0.898,
+  "mode": "trace",
+  "t0": 1793638976.272794,
+  "wall_s": 382.2,
+  "capacity": 0.1,
+  "profile": "120:0.887,120:3.193",
+  "profile_s": 240.0,
+  "arrivals": 49,
+  "tail_s": 900.0,
+  "by_phase": {
+    "baseline": {
+      "n": 7,
+      "accuracy": 1,
+      "deadline_met": 1,
+      "correct_and_on_time": 1,
+      "latency_p50_s": 88.93,
+      "latency_p95_s": 267.8256,
+      "thinking_tokens_mean": 2827.8571,
+      "cancelled": 0
+    },
+    "burst": {
+      "n": 42,
+      "accuracy": 0.881,
+      "deadline_met": 1,
+      "correct_and_on_time": 0.881,
+      "latency_p50_s": 92.5382,
+      "latency_p95_s": 213.823,
+      "thinking_tokens_mean": 1991.619,
+      "cancelled": 0
+    }
+  },
+  "by_segment": {
+    "0": {
+      "n": 7,
+      "accuracy": 1,
+      "deadline_met": 1,
+      "correct_and_on_time": 1,
+      "latency_p50_s": 88.93,
+      "latency_p95_s": 267.8256,
+      "thinking_tokens_mean": 2827.8571,
+      "cancelled": 0
+    },
+    "1": {
+      "n": 42,
+      "accuracy": 0.881,
+      "deadline_met": 1,
+      "correct_and_on_time": 0.881,
+      "latency_p50_s": 92.5382,
+      "latency_p95_s": 213.823,
+      "thinking_tokens_mean": 1991.619,
+      "cancelled": 0
+    }
+  },
+  "by_band": {
+    "L1": {
+      "n": 3,
+      "accuracy": 1,
+      "deadline_met": 1,
+      "correct_and_on_time": 1,
+      "latency_p50_s": 26.3713,
+      "latency_p95_s": 52.654,
+      "thinking_tokens_mean": 425.6667,
+      "cancelled": 0
+    },
+    "L2": {
+      "n": 10,
+      "accuracy": 0.9,
+      "deadline_met": 1,
+      "correct_and_on_time": 0.9,
+      "latency_p50_s": 80.6494,
+      "latency_p95_s": 220.6526,
+      "thinking_tokens_mean": 2115,
+      "cancelled": 0
+    },
+    "L3": {
+      "n": 11,
+      "accuracy": 0.9091,
+      "deadline_met": 1,
+      "correct_and_on_time": 0.9091,
+      "latency_p50_s": 81.0538,
+      "latency_p95_s": 211.3389,
+      "thinking_tokens_mean": 1744.4545,
+      "cancelled": 0
+    },
+    "L4": {
+      "n": 13,
+      "accuracy": 0.9231,
+      "deadline_met": 1,
+      "correct_and_on_time": 0.9231,
+      "latency_p50_s": 88.93,
+      "latency_p95_s": 213.0374,
+      "thinking_tokens_mean": 2072.6923,
+      "cancelled": 0
+    },
+    "L5": {
+      "n": 12,
+      "accuracy": 0.8333,
+      "deadline_met": 1,
+      "correct_and_on_time": 0.8333,
+      "latency_p50_s": 152.6652,
+      "latency_p95_s": 227.5337,
+      "thinking_tokens_mean": 2906.8333,
+      "cancelled": 0
+    }
+  },
+  "by_band_phase": {
+    "L1": {
+      "burst": {
+        "n": 3,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 26.3713,
+        "latency_p95_s": 52.654,
+        "thinking_tokens_mean": 425.6667,
+        "cancelled": 0
+      }
+    },
+    "L2": {
+      "baseline": {
+        "n": 1,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 97.8441,
+        "latency_p95_s": 97.8441,
+        "thinking_tokens_mean": 2359,
+        "cancelled": 0
+      },
+      "burst": {
+        "n": 9,
+        "accuracy": 0.8889,
+        "deadline_met": 1,
+        "correct_and_on_time": 0.8889,
+        "latency_p50_s": 80.6494,
+        "latency_p95_s": 220.6526,
+        "thinking_tokens_mean": 2087.8889,
+        "cancelled": 0
+      }
+    },
+    "L3": {
+      "baseline": {
+        "n": 1,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 47.7818,
+        "latency_p95_s": 47.7818,
+        "thinking_tokens_mean": 1947,
+        "cancelled": 0
+      },
+      "burst": {
+        "n": 10,
+        "accuracy": 0.9,
+        "deadline_met": 1,
+        "correct_and_on_time": 0.9,
+        "latency_p50_s": 81.0538,
+        "latency_p95_s": 211.3389,
+        "thinking_tokens_mean": 1724.2,
+        "cancelled": 0
+      }
+    },
+    "L4": {
+      "baseline": {
+        "n": 3,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 50.4376,
+        "latency_p95_s": 88.93,
+        "thinking_tokens_mean": 1976.6667,
+        "cancelled": 0
+      },
+      "burst": {
+        "n": 10,
+        "accuracy": 0.9,
+        "deadline_met": 1,
+        "correct_and_on_time": 0.9,
+        "latency_p50_s": 93.5941,
+        "latency_p95_s": 213.823,
+        "thinking_tokens_mean": 2101.5,
+        "cancelled": 0
+      }
+    },
+    "L5": {
+      "baseline": {
+        "n": 2,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 111.8047,
+        "latency_p95_s": 267.8256,
+        "thinking_tokens_mean": 4779.5,
+        "cancelled": 0
+      },
+      "burst": {
+        "n": 10,
+        "accuracy": 0.8,
+        "deadline_met": 1,
+        "correct_and_on_time": 0.8,
+        "latency_p50_s": 97.9816,
+        "latency_p95_s": 227.5337,
+        "thinking_tokens_mean": 2532.3,
+        "cancelled": 0
+      }
+    }
+  },
+  "trace": {
+    "trace": "burstgpt",
+    "log": "conversation",
+    "start_h": 522.0,
+    "window_h": 0.26667,
+    "window_n": 115,
+    "load": 2.04,
+    "bin_s": 120.0,
+    "compression": 4.0
+  },
+  "by_slack": {
+    "1.5": {
+      "n": 20,
+      "deadline_met": 1,
+      "accuracy": 0.8
+    },
+    "3.0": {
+      "n": 14,
+      "deadline_met": 1,
+      "accuracy": 1
+    },
+    "6.0": {
+      "n": 15,
+      "deadline_met": 1,
+      "accuracy": 0.9333
+    }
+  }
+}
+wrote /opt/brownout/results/qwen3-4b-spike-jev-vs-clf-20261102-1616/realistic-brownout-announced-jev

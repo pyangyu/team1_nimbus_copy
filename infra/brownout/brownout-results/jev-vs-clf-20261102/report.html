@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thinking Brownout: Jev vs the classifier under one BurstGPT spike</title>
+<style>
+.viz-root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface-1: #fcfcfb; --text-primary: #0b0b0b; --text-secondary: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --band: rgba(137, 135, 129, 0.10); --border: rgba(11, 11, 11, 0.10);
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --text-primary: #f0efec; --text-secondary: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --band: rgba(195, 194, 183, 0.08); --border: rgba(255, 255, 255, 0.10);
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface-1: #1a1a19; --text-primary: #f0efec; --text-secondary: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --band: rgba(195, 194, 183, 0.08); --border: rgba(255, 255, 255, 0.10);
+}
+html, body { margin: 0; }
+.viz-root { background: var(--page); color: var(--text-primary); min-height: 100vh;
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 32px 24px 48px; box-sizing: border-box; }
+.wrap { max-width: 980px; margin: 0 auto; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+.sub { color: var(--text-secondary); margin: 0 0 20px; }
+.headline { font-size: 16px; margin: 0 0 24px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 20px 20px 12px;
+  margin: 0 0 20px; position: relative; }
+.card h2 { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+.card p.note { color: var(--text-secondary); margin: 0 0 12px; font-size: 13px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 8px; color: var(--text-secondary); font-size: 13px; }
+.legend span.key { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle;
+  margin-right: 6px; }
+.multiples { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px 20px; }
+.multiples h3 { font-size: 13px; font-weight: 600; margin: 4px 0 0; color: var(--text-secondary); }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+svg text.cat { fill: var(--text-secondary); font-size: 12px; font-variant-numeric: normal; }
+svg text.val { fill: var(--text-primary); font-size: 12px; }
+.tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  display: none; z-index: 2; min-width: 140px; }
+.tip .head { color: var(--text-secondary); margin-bottom: 4px; }
+.tip .row { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.tip .row b { font-weight: 600; color: var(--text-primary); min-width: 44px; font-variant-numeric: tabular-nums; }
+.tip .row i { font-style: normal; color: var(--text-secondary); }
+.tip .row span.key { display: inline-block; width: 12px; height: 2px; border-radius: 1px; }
+details { margin: 8px 0 4px; color: var(--text-secondary); font-size: 13px; }
+summary { cursor: pointer; }
+table { border-collapse: collapse; margin-top: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 3px 10px 3px 0; border-bottom: 1px solid var(--grid); color: var(--text-primary); }
+th { color: var(--text-secondary); font-weight: 600; }
+th:first-child, td:first-child { text-align: left; }
+.foot { color: var(--muted); font-size: 12px; margin-top: 16px; }
+nav.tabs { display: flex; gap: 4px; margin: 10px 0 20px; border-bottom: 1px solid var(--grid); }
+nav.tabs a { color: var(--text-secondary); text-decoration: none; padding: 6px 12px; margin-bottom: -1px;
+  border-bottom: 2px solid transparent; }
+nav.tabs a[aria-current="page"] { color: var(--text-primary); border-bottom-color: var(--text-primary); font-weight: 600; }
+.scroll { overflow-x: auto; }
+th.l, td.l { text-align: left; }
+.card p.body { margin: 4px 0 10px; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 8px 0; font-size: 13px; }
+dl.facts dt { color: var(--text-secondary); }
+dl.facts dd { margin: 0; }
+</style>
+</head>
+<body>
+<div class="viz-root"><div class="wrap" id="app"></div></div>
+<script>
+const DATA = {"suite": "spike", "workload": "math500:1-5", "trace_args": ["--trace", "burstgpt", "--trace-start-h", "522.0", "--trace-window-h", "0.26667", "--trace-s", "240", "--load", "2.04"], "capacity": 0.1, "warmup": {"n": 64, "split": "b", "labels": 75, "censored": 87, "accuracy": 0.875, "thinking_tokens_mean": 6911.2344}, "bursts": [[120.0, 240.0, 3.193]], "profile": "120:0.887,120:3.193", "tpot_slo_ms": 35.0, "setup": {"model": "Qwen/Qwen3-4B", "seed": 0, "problems": "49 per policy from MATH-500 (math500:1-5, half a by problem id)", "capacity": "C = 0.1 workflows/s (given)", "load": "0.89x C for 120 s, then 3.19x C for 120 s", "pressure": "the vLLM queue (waiting / running), or decoding slower than 35 ms per token", "arrivals": "BurstGPT conversation log, hours 522.0 to 522.27 (115 requests), replayed 4x faster in 240 s and thinned at random to 49 arrivals", "deadlines": "arrival + slack x solo latency; slack 1.5, 3, 6 per problem; solo latency 150 s for levels 1-2, 300 s for level 3, 450 s for levels 4-5", "budgets": "2,048 thinking tokens for levels 1-2 (4,096 on a retry), 4,096 for level 3 (6,144), 6,144 for levels 4-5", "tail": "workflows still running 900 s after the last arrival are cancelled and count as wrong and late", "warmup": "64 workflows from the other half of MATH-500 under no control (75 finished think calls, 87 cut or capped); the gateway saves that state and every policy starts from it"}, "paired": [{"a": "No control", "b": "Brownout, announced, classifier", "gained": 3, "lost": 2, "p": 1.0}, {"a": "No control", "b": "Brownout, announced, Jev", "gained": 5, "lost": 0, "p": 0.062}, {"a": "Brownout, announced, classifier", "b": "Brownout, announced, Jev", "gained": 5, "lost": 1, "p": 0.219}], "runs": [{"spec": "none", "name": "No control", "light": "#2a78d6", "dark": "#3987e5", "n": 49, "accuracy": 0.7959, "deadline_met": 0.9796, "goodput": 0.7959, "goodput_baseline": 0.7143, "goodput_burst": 0.8095, "cancelled": 0, "latency_p50_s": 333.5782, "latency_p95_s": 650.2173, "thinking_tokens_mean": 5915.5918, "think": 121, "cut": 0, "announced": 0, "notices": 0, "p_mean": 0.2637, "queue_frac": 0.1047, "tpot_ms_mean": 41.9, "by_band": {"L1": {"n": 3, "goodput": 1}, "L2": {"n": 10, "goodput": 0.9}, "L3": {"n": 11, "goodput": 0.9091}, "L4": {"n": 13, "goodput": 0.8462}, "L5": {"n": 12, "goodput": 0.5}}, "queue": [[0.0, 0.0], [5.0, 0.0], [10.0, 0.0], [15.0, 0.0], [20.0, 0.0], [25.0, 0.0], [30.0, 0.0], [35.0, 0.0], [40.0, 0.0], [45.0, 0.0], [50.0, 0.0], [55.0, 0.0], [60.0, 0.0], [65.0, 0.0], [70.0, 0.0], [75.0, 0.0], [80.0, 0.0], [85.0, 0.0], [90.0, 0.0], [95.0, 0.0], [100.0, 0.0], [105.0, 0.0], [110.0, 0.0], [115.0, 0.0], [120.0, 0.0], [125.0, 0.0], [130.0, 0.0], [135.0, 0.0], [140.0, 0.0], [145.0, 0.0], [150.0, 0.0], [155.0, 0.0], [160.0, 0.0], [165.0, 0.0], [170.0, 0.0], [175.0, 0.0], [180.0, 0.0], [185.0, 0.0], [190.0, 0.0], [195.0, 0.0], [200.0, 0.0], [205.0, 0.0], [210.0, 0.0], [215.0, 0.0], [220.0, 0.0], [225.0, 0.0], [230.0, 0.0], [235.0, 0.0], [240.0, 0.0], [245.0, 0.0], [250.0, 0.0], [255.0, 0.0], [260.0, 0.0], [265.0, 0.0], [270.0, 0.0], [275.0, 0.0], [280.0, 0.0], [285.0, 0.0], [290.0, 0.0], [295.0, 0.0], [300.0, 0.0], [305.0, 0.0], [310.0, 0.0], [315.0, 0.0], [320.0, 0.0], [325.0, 0.0], [330.0, 0.0], [335.0, 0.0], [340.0, 0.4], [345.0, 3.1], [350.0, 4.78], [355.0, 3.9], [360.0, 1.8], [365.0, 1.1], [370.0, 1.1], [375.0, 0.0], [380.0, 0.0], [385.0, 0.0], [390.0, 0.0], [395.0, 0.0], [400.0, 0.0], [405.0, 0.0], [410.0, 0.0], [415.0, 0.0], [420.0, 0.0], [425.0, 0.33], [430.0, 1.0], [435.0, 1.3], [440.0, 0.2], [445.0, 0.9], [450.0, 1.0], [455.0, 0.9], [460.0, 1.4], [465.0, 1.0], [470.0, 1.4], [475.0, 1.0], [480.0, 0.89], [485.0, 1.0], [490.0, 1.4], [495.0, 0.6], [500.0, 0.0], [505.0, 0.0], [510.0, 0.0], [515.0, 0.0], [520.0, 0.0], [525.0, 0.0], [530.0, 0.0], [535.0, 0.0], [540.0, 0.0], [545.0, 0.0], [550.0, 0.0], [555.0, 0.0], [560.0, 0.0], [565.0, 0.0], [570.0, 0.0], [575.0, 0.0], [580.0, 0.0], [585.0, 0.0], [590.0, 0.0], [595.0, 0.0], [600.0, 0.0], [605.0, 0.0], [610.0, 0.0], [615.0, 0.0], [620.0, 0.0], [625.0, 0.0], [630.0, 0.0], [635.0, 0.0], [640.0, 0.0], [645.0, 0.0], [650.0, 0.0], [655.0, 0.0], [660.0, 0.0], [665.0, 0.0], [670.0, 0.0], [675.0, 0.0], [680.0, 0.0], [685.0, 0.0], [690.0, 0.0], [695.0, 0.0], [700.0, 0.0], [705.0, 0.0], [710.0, 0.0], [715.0, 0.0], [720.0, 0.0], [725.0, 0.0], [730.0, 0.0], [735.0, 0.0], [740.0, 0.0], [745.0, 0.0], [750.0, 0.0], [755.0, 0.0], [760.0, 0.0], [765.0, 0.0], [770.0, 0.0], [775.0, 0.0], [780.0, 0.0], [785.0, 0.0], [790.0, 0.0], [795.0, 0.0], [800.0, 0.0], [805.0, 0.0], [810.0, 0.0], [815.0, 0.0]], "running": [[0.0, 0.0], [5.0, 0.0], [10.0, 0.0], [15.0, 0.4], [20.0, 1.0], [25.0, 1.0], [30.0, 1.0], [35.0, 1.0], [40.0, 1.5], [45.0, 2.0], [50.0, 2.0], [55.0, 2.0], [60.0, 2.0], [65.0, 1.7], [70.0, 1.0], [75.0, 1.0], [80.0, 1.0], [85.0, 1.0], [90.0, 1.89], [95.0, 2.4], [100.0, 2.0], [105.0, 4.0], [110.0, 5.0], [115.0, 5.0], [120.0, 5.0], [125.0, 5.6], [130.0, 6.2], [135.0, 7.5], [140.0, 11.3], [145.0, 16.22], [150.0, 20.7], [155.0, 23.3], [160.0, 24.5], [165.0, 26.2], [170.0, 27.0], [175.0, 27.8], [180.0, 31.1], [185.0, 33.4], [190.0, 34.2], [195.0, 35.0], [200.0, 34.9], [205.0, 34.8], [210.0, 34.3], [215.0, 38.0], [220.0, 40.89], [225.0, 42.0], [230.0, 43.1], [235.0, 44.8], [240.0, 44.9], [245.0, 44.67], [250.0, 44.8], [255.0, 44.3], [260.0, 43.3], [265.0, 42.8], [270.0, 42.22], [275.0, 42.0], [280.0, 42.0], [285.0, 41.6], [290.0, 40.5], [295.0, 39.89], [300.0, 39.0], [305.0, 38.5], [310.0, 37.9], [315.0, 37.8], [320.0, 36.11], [325.0, 34.9], [330.0, 34.6], [335.0, 34.0], [340.0, 33.5], [345.0, 30.9], [350.0, 29.11], [355.0, 29.3], [360.0, 31.2], [365.0, 31.7], [370.0, 31.8], [375.0, 33.0], [380.0, 32.8], [385.0, 31.1], [390.0, 30.8], [395.0, 29.1], [400.0, 29.0], [405.0, 29.0], [410.0, 29.0], [415.0, 28.8], [420.0, 28.1], [425.0, 27.67], [430.0, 26.9], [435.0, 26.0], [440.0, 26.0], [445.0, 25.1], [450.0, 24.89], [455.0, 24.9], [460.0, 24.0], [465.0, 23.0], [470.0, 21.9], [475.0, 22.0], [480.0, 21.89], [485.0, 21.0], [490.0, 20.6], [495.0, 21.2], [500.0, 21.9], [505.0, 21.0], [510.0, 21.0], [515.0, 20.9], [520.0, 20.1], [525.0, 20.0], [530.0, 20.0], [535.0, 18.9], [540.0, 19.0], [545.0, 19.0], [550.0, 18.9], [555.0, 19.0], [560.0, 19.0], [565.0, 18.2], [570.0, 17.4], [575.0, 17.0], [580.0, 17.0], [585.0, 16.8], [590.0, 15.89], [595.0, 15.3], [600.0, 15.0], [605.0, 14.0], [610.0, 14.0], [615.0, 14.0], [620.0, 13.7], [625.0, 13.0], [630.0, 13.0], [635.0, 12.7], [640.0, 12.0], [645.0, 12.0], [650.0, 11.9], [655.0, 11.0], [660.0, 11.0], [665.0, 10.9], [670.0, 11.0], [675.0, 11.0], [680.0, 11.0], [685.0, 11.0], [690.0, 11.0], [695.0, 10.9], [700.0, 10.0], [705.0, 10.0], [710.0, 10.0], [715.0, 10.0], [720.0, 10.0], [725.0, 9.0], [730.0, 9.0], [735.0, 8.2], [740.0, 7.8], [745.0, 7.0], [750.0, 6.9], [755.0, 7.0], [760.0, 7.0], [765.0, 7.0], [770.0, 6.9], [775.0, 7.0], [780.0, 6.0], [785.0, 5.0], [790.0, 5.0], [795.0, 4.5], [800.0, 3.8], [805.0, 2.1], [810.0, 1.0], [815.0, 1.0]], "tpot": [[20.0, 19.9], [25.0, 19.8], [30.0, 20.0], [35.0, 20.1], [40.0, 20.2], [45.0, 20.3], [50.0, 20.8], [55.0, 20.9], [60.0, 20.6], [65.0, 20.6], [70.0, 20.9], [75.0, 20.3], [80.0, 20.4], [85.0, 20.2], [90.0, 19.8], [95.0, 20.2], [100.0, 20.6], [105.0, 20.7], [110.0, 21.1], [115.0, 21.5], [120.0, 21.8], [125.0, 22.1], [130.0, 22.2], [135.0, 22.8], [140.0, 25.1], [145.0, 27.1], [150.0, 28.7], [155.0, 29.7], [160.0, 31.0], [165.0, 33.2], [170.0, 33.8], [175.0, 35.3], [180.0, 37.6], [185.0, 39.5], [190.0, 40.5], [195.0, 40.9], [200.0, 41.9], [205.0, 43.7], [210.0, 42.8], [215.0, 47.1], [220.0, 48.5], [225.0, 47.7], [230.0, 47.4], [235.0, 48.1], [240.0, 48.5], [245.0, 50.9], [250.0, 51.0], [255.0, 50.6], [260.0, 51.5], [265.0, 51.5], [270.0, 51.1], [275.0, 52.3], [280.0, 52.1], [285.0, 53.3], [290.0, 53.7], [295.0, 54.0], [300.0, 54.2], [305.0, 54.3], [310.0, 53.6], [315.0, 54.0], [320.0, 55.8], [325.0, 57.2], [330.0, 56.5], [335.0, 56.7], [340.0, 61.0], [345.0, 56.4], [350.0, 57.4], [355.0, 61.6], [360.0, 66.0], [365.0, 59.2], [370.0, 58.6], [375.0, 55.8], [380.0, 50.5], [385.0, 52.5], [390.0, 51.3], [395.0, 50.4], [400.0, 50.8], [405.0, 50.4], [410.0, 52.3], [415.0, 53.2], [420.0, 53.4], [425.0, 51.8], [430.0, 55.8], [435.0, 66.9], [440.0, 61.2], [445.0, 54.1], [450.0, 53.2], [455.0, 63.6], [460.0, 81.0], [465.0, 65.4], [470.0, 57.6], [475.0, 57.0], [480.0, 53.8], [485.0, 63.5], [490.0, 52.5], [495.0, 59.3], [500.0, 55.6], [505.0, 51.7], [510.0, 50.5], [515.0, 51.2], [520.0, 45.6], [525.0, 44.0], [530.0, 45.4], [535.0, 44.9], [540.0, 44.3], [545.0, 42.7], [550.0, 43.5], [555.0, 42.1], [560.0, 41.8], [565.0, 42.1], [570.0, 39.8], [575.0, 39.0], [580.0, 39.6], [585.0, 40.5], [590.0, 41.1], [595.0, 41.0], [600.0, 40.1], [605.0, 40.0], [610.0, 39.9], [615.0, 40.8], [620.0, 41.0], [625.0, 40.9], [630.0, 40.8], [635.0, 41.4], [640.0, 39.9], [645.0, 39.7], [650.0, 40.2], [655.0, 40.2], [660.0, 40.4], [665.0, 41.1], [670.0, 41.9], [675.0, 42.6], [680.0, 43.1], [685.0, 43.6], [690.0, 44.2], [695.0, 44.5], [700.0, 41.1], [705.0, 37.0], [710.0, 37.3], [715.0, 38.0], [720.0, 37.9], [725.0, 37.7], [730.0, 37.2], [735.0, 36.0], [740.0, 33.4], [745.0, 32.6], [750.0, 32.2], [755.0, 32.6], [760.0, 33.1], [765.0, 33.5], [770.0, 33.4], [775.0, 33.8], [780.0, 33.8], [785.0, 31.0], [790.0, 30.5], [795.0, 30.3], [800.0, 28.7], [805.0, 26.7], [810.0, 23.2], [815.0, 22.2]], "latency": [[10.0, 50.4], [50.0, 54.5], [90.0, 362.1], [110.0, 333.6], [130.0, 258.2], [150.0, 386.2], [170.0, 168.9], [190.0, 384.1], [210.0, 358.9], [230.0, 160.0]], "thinking": [[10.0, 2069], [50.0, 2128], [90.0, 7881.0], [110.0, 6789], [130.0, 4845], [150.0, 6386.0], [170.0, 2560], [190.0, 6232.0], [210.0, 5984], [230.0, 2199]]}, {"spec": "brownout:announced:online", "name": "Brownout, announced, classifier", "light": "#eb6834", "dark": "#d95926", "n": 49, "accuracy": 0.8163, "deadline_met": 1, "goodput": 0.8163, "goodput_baseline": 1, "goodput_burst": 0.7857, "cancelled": 0, "latency_p50_s": 93.8938, "latency_p95_s": 273.6999, "thinking_tokens_mean": 2347.0204, "think": 126, "cut": 1, "announced": 91, "notices": 110, "p_mean": 0.0319, "queue_frac": 0.0, "tpot_ms_mean": 30.6, "by_band": {"L1": {"n": 3, "goodput": 1}, "L2": {"n": 10, "goodput": 0.8}, "L3": {"n": 11, "goodput": 1}, "L4": {"n": 13, "goodput": 0.7692}, "L5": {"n": 12, "goodput": 0.6667}}, "queue": [[0.0, 0.0], [5.0, 0.0], [10.0, 0.0], [15.0, 0.0], [20.0, 0.0], [25.0, 0.0], [30.0, 0.0], [35.0, 0.0], [40.0, 0.0], [45.0, 0.0], [50.0, 0.0], [55.0, 0.0], [60.0, 0.0], [65.0, 0.0], [70.0, 0.0], [75.0, 0.0], [80.0, 0.0], [85.0, 0.0], [90.0, 0.0], [95.0, 0.0], [100.0, 0.0], [105.0, 0.0], [110.0, 0.0], [115.0, 0.0], [120.0, 0.0], [125.0, 0.0], [130.0, 0.0], [135.0, 0.0], [140.0, 0.0], [145.0, 0.0], [150.0, 0.0], [155.0, 0.0], [160.0, 0.0], [165.0, 0.0], [170.0, 0.0], [175.0, 0.0], [180.0, 0.0], [185.0, 0.0], [190.0, 0.0], [195.0, 0.0], [200.0, 0.0], [205.0, 0.0], [210.0, 0.0], [215.0, 0.0], [220.0, 0.0], [225.0, 0.0], [230.0, 0.0], [235.0, 0.0], [240.0, 0.0], [245.0, 0.0], [250.0, 0.0], [255.0, 0.0], [260.0, 0.0], [265.0, 0.0], [270.0, 0.0], [275.0, 0.0], [280.0, 0.0], [285.0, 0.0], [290.0, 0.0], [295.0, 0.0], [300.0, 0.0], [305.0, 0.0], [310.0, 0.0], [315.0, 0.0], [320.0, 0.0], [325.0, 0.0], [330.0, 0.0], [335.0, 0.0], [340.0, 0.0], [345.0, 0.0], [350.0, 0.0], [355.0, 0.0], [360.0, 0.0], [365.0, 0.0], [370.0, 0.0], [375.0, 0.0], [380.0, 0.0], [385.0, 0.0], [390.0, 0.0], [395.0, 0.0], [400.0, 0.0], [405.0, 0.0], [410.0, 0.0], [415.0, 0.0], [420.0, 0.0]], "running": [[0.0, 0.0], [5.0, 0.0], [10.0, 0.0], [15.0, 0.3], [20.0, 1.0], [25.0, 1.0], [30.0, 1.0], [35.0, 1.0], [40.0, 1.56], [45.0, 2.0], [50.0, 2.0], [55.0, 2.0], [60.0, 2.0], [65.0, 1.1], [70.0, 1.0], [75.0, 1.0], [80.0, 1.0], [85.0, 1.0], [90.0, 2.0], [95.0, 2.56], [100.0, 2.0], [105.0, 4.0], [110.0, 5.0], [115.0, 5.0], [120.0, 5.0], [125.0, 5.67], [130.0, 6.2], [135.0, 7.4], [140.0, 11.2], [145.0, 16.4], [150.0, 21.22], [155.0, 23.2], [160.0, 24.5], [165.0, 26.1], [170.0, 27.0], [175.0, 27.8], [180.0, 31.1], [185.0, 33.3], [190.0, 33.9], [195.0, 33.44], [200.0, 32.9], [205.0, 31.8], [210.0, 30.4], [215.0, 34.2], [220.0, 33.11], [225.0, 29.2], [230.0, 26.7], [235.0, 25.7], [240.0, 26.0], [245.0, 24.7], [250.0, 23.0], [255.0, 21.0], [260.0, 21.0], [265.0, 21.0], [270.0, 21.0], [275.0, 21.0], [280.0, 21.0], [285.0, 19.5], [290.0, 17.9], [295.0, 17.0], [300.0, 16.89], [305.0, 17.0], [310.0, 17.0], [315.0, 16.7], [320.0, 15.1], [325.0, 14.56], [330.0, 14.0], [335.0, 14.0], [340.0, 14.0], [345.0, 14.0], [350.0, 14.0], [355.0, 14.0], [360.0, 13.7], [365.0, 13.0], [370.0, 12.3], [375.0, 10.8], [380.0, 10.0], [385.0, 7.6], [390.0, 7.0], [395.0, 7.0], [400.0, 6.8], [405.0, 6.0], [410.0, 4.4], [415.0, 2.0], [420.0, 1.12]], "tpot": [[20.0, 19.9], [25.0, 19.9], [30.0, 19.9], [35.0, 20.0], [40.0, 20.4], [45.0, 20.4], [50.0, 20.8], [55.0, 20.7], [60.0, 20.6], [65.0, 20.8], [70.0, 20.3], [75.0, 20.3], [80.0, 20.4], [85.0, 20.3], [90.0, 20.2], [95.0, 20.3], [100.0, 20.7], [105.0, 21.2], [110.0, 21.2], [115.0, 21.5], [120.0, 21.8], [125.0, 22.1], [130.0, 22.2], [135.0, 22.8], [140.0, 24.6], [145.0, 27.2], [150.0, 29.0], [155.0, 29.7], [160.0, 30.9], [165.0, 33.1], [170.0, 33.8], [175.0, 35.2], [180.0, 40.9], [185.0, 43.9], [190.0, 44.6], [195.0, 41.7], [200.0, 39.1], [205.0, 40.9], [210.0, 45.0], [215.0, 40.6], [220.0, 41.9], [225.0, 36.0], [230.0, 33.1], [235.0, 33.9], [240.0, 34.1], [245.0, 34.8], [250.0, 34.8], [255.0, 33.7], [260.0, 29.3], [265.0, 30.1], [270.0, 31.6], [275.0, 31.9], [280.0, 32.4], [285.0, 32.9], [290.0, 33.0], [295.0, 33.0], [300.0, 33.4], [305.0, 34.3], [310.0, 34.5], [315.0, 34.7], [320.0, 34.9], [325.0, 34.7], [330.0, 35.1], [335.0, 35.7], [340.0, 36.2], [345.0, 38.1], [350.0, 38.8], [355.0, 38.1], [360.0, 38.5], [365.0, 39.0], [370.0, 39.4], [375.0, 39.2], [380.0, 36.2], [385.0, 33.4], [390.0, 30.6], [395.0, 30.9], [400.0, 31.2], [405.0, 30.1], [410.0, 28.9], [415.0, 24.9], [420.0, 21.1]], "latency": [[10.0, 47.8], [50.0, 55.4], [90.0, 207.0], [110.0, 120.5], [130.0, 117.4], [150.0, 83.5], [170.0, 53.5], [190.0, 104.7], [210.0, 157.7], [230.0, 90.3]], "thinking": [[10.0, 1947], [50.0, 2232], [90.0, 5527.5], [110.0, 2909], [130.0, 2078], [150.0, 1309.0], [170.0, 676], [190.0, 1791.0], [210.0, 2746], [230.0, 2101]]}, {"spec": "brownout:announced:jev", "name": "Brownout, announced, Jev", "light": "#1baf7a", "dark": "#199e70", "n": 49, "accuracy": 0.898, "deadline_met": 1, "goodput": 0.898, "goodput_baseline": 1, "goodput_burst": 0.881, "cancelled": 0, "latency_p50_s": 92.5382, "latency_p95_s": 220.6526, "thinking_tokens_mean": 2111.0816, "think": 126, "cut": 3, "announced": 93, "notices": 102, "p_mean": 0.029, "queue_frac": 0.0, "tpot_ms_mean": 29.3, "by_band": {"L1": {"n": 3, "goodput": 1}, "L2": {"n": 10, "goodput": 0.9}, "L3": {"n": 11, "goodput": 0.9091}, "L4": {"n": 13, "goodput": 0.9231}, "L5": {"n": 12, "goodput": 0.8333}}, "queue": [[0.0, 0.0], [5.0, 0.0], [10.0, 0.0], [15.0, 0.0], [20.0, 0.0], [25.0, 0.0], [30.0, 0.0], [35.0, 0.0], [40.0, 0.0], [45.0, 0.0], [50.0, 0.0], [55.0, 0.0], [60.0, 0.0], [65.0, 0.0], [70.0, 0.0], [75.0, 0.0], [80.0, 0.0], [85.0, 0.0], [90.0, 0.0], [95.0, 0.0], [100.0, 0.0], [105.0, 0.0], [110.0, 0.0], [115.0, 0.0], [120.0, 0.0], [125.0, 0.0], [130.0, 0.0], [135.0, 0.0], [140.0, 0.0], [145.0, 0.0], [150.0, 0.0], [155.0, 0.0], [160.0, 0.0], [165.0, 0.0], [170.0, 0.0], [175.0, 0.0], [180.0, 0.0], [185.0, 0.0], [190.0, 0.0], [195.0, 0.0], [200.0, 0.0], [205.0, 0.0], [210.0, 0.0], [215.0, 0.0], [220.0, 0.0], [225.0, 0.0], [230.0, 0.0], [235.0, 0.0], [240.0, 0.0], [245.0, 0.0], [250.0, 0.0], [255.0, 0.0], [260.0, 0.0], [265.0, 0.0], [270.0, 0.0], [275.0, 0.0], [280.0, 0.0], [285.0, 0.0], [290.0, 0.0], [295.0, 0.0], [300.0, 0.0], [305.0, 0.0], [310.0, 0.0], [315.0, 0.0], [320.0, 0.0], [325.0, 0.0], [330.0, 0.0], [335.0, 0.0], [340.0, 0.0], [345.0, 0.0], [350.0, 0.0], [355.0, 0.0], [360.0, 0.0], [365.0, 0.0], [370.0, 0.0], [375.0, 0.0], [380.0, 0.0]], "running": [[0.0, 0.0], [5.0, 0.0], [10.0, 0.0], [15.0, 0.4], [20.0, 1.0], [25.0, 1.0], [30.0, 1.0], [35.0, 1.0], [40.0, 1.5], [45.0, 2.0], [50.0, 2.0], [55.0, 2.0], [60.0, 2.0], [65.0, 1.1], [70.0, 1.0], [75.0, 1.0], [80.0, 1.0], [85.0, 1.0], [90.0, 1.5], [95.0, 1.9], [100.0, 2.0], [105.0, 4.1], [110.0, 5.0], [115.0, 5.0], [120.0, 5.0], [125.0, 5.6], [130.0, 5.4], [135.0, 6.4], [140.0, 10.11], [145.0, 14.9], [150.0, 20.0], [155.0, 22.3], [160.0, 23.4], [165.0, 25.11], [170.0, 25.9], [175.0, 26.8], [180.0, 29.9], [185.0, 32.3], [190.0, 33.0], [195.0, 32.9], [200.0, 31.0], [205.0, 29.2], [210.0, 25.44], [215.0, 28.0], [220.0, 29.0], [225.0, 29.1], [230.0, 26.4], [235.0, 24.56], [240.0, 22.2], [245.0, 20.0], [250.0, 20.0], [255.0, 19.9], [260.0, 20.0], [265.0, 20.0], [270.0, 20.0], [275.0, 20.0], [280.0, 20.0], [285.0, 20.0], [290.0, 19.0], [295.0, 19.0], [300.0, 18.9], [305.0, 19.0], [310.0, 18.11], [315.0, 18.0], [320.0, 18.0], [325.0, 18.0], [330.0, 17.3], [335.0, 17.0], [340.0, 16.5], [345.0, 13.4], [350.0, 11.7], [355.0, 10.2], [360.0, 5.9], [365.0, 1.56], [370.0, 1.0], [375.0, 1.0], [380.0, 0.8]], "tpot": [[20.0, 19.9], [25.0, 19.8], [30.0, 19.9], [35.0, 20.1], [40.0, 20.2], [45.0, 20.1], [50.0, 20.8], [55.0, 20.7], [60.0, 20.6], [65.0, 20.1], [70.0, 20.2], [75.0, 20.4], [80.0, 20.3], [85.0, 19.9], [90.0, 20.5], [95.0, 19.6], [100.0, 20.1], [105.0, 20.9], [110.0, 21.3], [115.0, 21.4], [120.0, 21.6], [125.0, 21.8], [130.0, 22.0], [135.0, 22.6], [140.0, 23.9], [145.0, 26.4], [150.0, 28.4], [155.0, 29.4], [160.0, 30.4], [165.0, 32.6], [170.0, 33.6], [175.0, 34.7], [180.0, 38.5], [185.0, 43.2], [190.0, 42.8], [195.0, 42.7], [200.0, 43.6], [205.0, 40.0], [210.0, 41.2], [215.0, 39.8], [220.0, 41.0], [225.0, 34.8], [230.0, 30.6], [235.0, 31.2], [240.0, 30.6], [245.0, 29.3], [250.0, 27.3], [255.0, 27.9], [260.0, 28.9], [265.0, 29.6], [270.0, 30.5], [275.0, 31.4], [280.0, 32.1], [285.0, 32.6], [290.0, 33.2], [295.0, 32.8], [300.0, 33.7], [305.0, 34.6], [310.0, 35.3], [315.0, 35.3], [320.0, 35.8], [325.0, 36.2], [330.0, 39.3], [335.0, 39.2], [340.0, 38.2], [345.0, 38.2], [350.0, 36.6], [355.0, 32.6], [360.0, 30.1], [365.0, 25.4], [370.0, 22.4], [375.0, 21.5], [380.0, 21.5]], "latency": [[10.0, 47.8], [50.0, 50.4], [90.0, 153.8], [110.0, 97.8], [130.0, 211.3], [150.0, 84.6], [170.0, 44.2], [190.0, 48.3], [210.0, 133.4], [230.0, 115.1]], "thinking": [[10.0, 1947], [50.0, 2053], [90.0, 4080.0], [110.0, 2482], [130.0, 4668], [150.0, 1278.0], [170.0, 526], [190.0, 35.0], [210.0, 2603], [230.0, 2639]]}], "title": "Thinking Brownout: Jev vs the classifier under one BurstGPT spike", "note": "Hardware: Qwen3-4B on one A10G GPU for every policy; Jev runs on a second A10G. With 49 problems per policy, a gap of a few problems can be chance."};
+const NS = "http://www.w3.org/2000/svg";
+const dark = () => getComputedStyle(document.querySelector(".viz-root")).colorScheme === "dark";
+const color = r => dark() ? r.dark : r.light;
+const pct = v => v == null ? "–" : Math.round(v * 100) + "%";
+const fmt = v => v == null ? "–" : v >= 1000 ? Math.round(v).toLocaleString() : (Math.round(v * 10) / 10).toString();
+
+function el(tag, attrs = {}, parent) {
+  const e = tag.startsWith("svg:") ? document.createElementNS(NS, tag.slice(4)) : document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "text") e.textContent = v; else if (k === "class") e.setAttribute("class", v); else e.setAttribute(k, v);
+  }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;
+  return 10 * p;
+}
+
+function tipBox(card) {
+  const t = el("div", {class: "tip"}, card);
+  return {
+    show(x, y, head, rows) {
+      t.replaceChildren();
+      el("div", {class: "head", text: head}, t);
+      for (const r of rows) {
+        const row = el("div", {class: "row"}, t);
+        const k = el("span", {class: "key"}, row); k.style.background = r.color;
+        el("b", {text: r.value}, row);
+        el("i", {text: r.name}, row);
+      }
+      t.style.display = "block";
+      const cw = card.clientWidth, tw = t.offsetWidth;
+      t.style.left = Math.min(Math.max(8, x + 14), cw - tw - 8) + "px";
+      t.style.top = (y + 14) + "px";
+    },
+    hide() { t.style.display = "none"; }
+  };
+}
+
+function card(title, note) {
+  const c = el("section", {class: "card"}, document.getElementById("app"));
+  el("h2", {text: title}, c);
+  if (note) el("p", {class: "note", text: note}, c);
+  return c;
+}
+
+function table(c, head, rows) {
+  const d = el("details", {}, c);
+  el("summary", {text: "Table view"}, d);
+  const t = el("table", {}, d);
+  const tr = el("tr", {}, el("thead", {}, t));
+  for (const h of head) el("th", {text: h}, tr);
+  const tb = el("tbody", {}, t);
+  for (const r of rows) { const row = el("tr", {}, tb); for (const v of r) el("td", {text: v}, row); }
+}
+
+function bars(c, parent, title, key, tip) {
+  const box = el("div", {}, parent);
+  el("h3", {text: title}, box);
+  const runs = DATA.runs, rowH = 30, right = 44, top = 6, H = top + runs.length * rowH + 22;
+  const left = Math.max(110, Math.round(14 + 6.8 * Math.max(...runs.map(r => r.name.length)))), W = left + 180 + right;
+  parent.style.gridTemplateColumns = `repeat(auto-fit, minmax(${W}px, 1fr))`;
+  const svg = el("svg:svg", {viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": title, style: `max-width: ${W}px`}, box);
+  const x = v => left + (W - left - right) * v;
+  for (const g of [0, 0.25, 0.5, 0.75, 1]) {
+    el("svg:line", {x1: x(g), x2: x(g), y1: top, y2: H - 20, stroke: "var(--grid)", "stroke-width": 1}, svg);
+    el("svg:text", {x: x(g), y: H - 6, "text-anchor": "middle", text: Math.round(g * 100) + "%"}, svg);
+  }
+  el("svg:line", {x1: x(0), x2: x(0), y1: top, y2: H - 20, stroke: "var(--axis)", "stroke-width": 1}, svg);
+  runs.forEach((r, i) => {
+    const v = r[key] || 0, y = top + i * rowH + (rowH - 18) / 2, w = Math.max(0, x(v) - x(0)), h = 18, rad = Math.min(4, w);
+    el("svg:text", {class: "cat", x: left - 8, y: y + 13, "text-anchor": "end", text: r.name}, svg);
+    const d = `M${x(0)},${y}h${w - rad}a${rad},${rad} 0 0 1 ${rad},${rad}v${h - 2 * rad}a${rad},${rad} 0 0 1 -${rad},${rad}h-${w - rad}z`;
+    const bar = el("svg:path", {d, fill: color(r), tabindex: 0}, svg);
+    el("svg:text", {class: "val", x: x(v) + 6, y: y + 13, text: pct(r[key])}, svg);
+    const hit = el("svg:rect", {x: 0, y: top + i * rowH, width: W, height: rowH, fill: "transparent"}, svg);
+    const on = e => {
+      bar.setAttribute("opacity", 0.8);
+      const b = c.getBoundingClientRect();
+      tip.show(e.clientX - b.left, e.clientY - b.top, title, [{color: color(r), value: pct(r[key]), name: r.name}]);
+    };
+    const off = () => { bar.removeAttribute("opacity"); tip.hide(); };
+    hit.addEventListener("pointermove", on); hit.addEventListener("pointerleave", off);
+    bar.addEventListener("focus", () => { const b = bar.getBoundingClientRect(); on({clientX: b.right, clientY: b.top}); });
+    bar.addEventListener("blur", off);
+  });
+}
+
+function lines(title, note, key, unit, ref) {
+  const c = card(title, note), tip = tipBox(c), runs = DATA.runs;
+  const lg = el("div", {class: "legend"}, c);
+  for (const r of runs) { const s = el("span", {}, lg); const k = el("span", {class: "key"}, s);
+    k.style.background = color(r); s.appendChild(document.createTextNode(r.name)); }
+  const W = 900, H = 280, L = 52, R = 16, T = 10, B = 34;
+  const xs = [...new Set(runs.flatMap(r => r[key].map(p => p[0])))].sort((a, b) => a - b);
+  const xmax = Math.max(60, ...xs);
+  const ymax = niceMax(Math.max(0, ref ? ref.value * 1.2 : 0, ...runs.flatMap(r => r[key].map(p => p[1]))));
+  const x = v => L + (W - L - R) * v / xmax, y = v => T + (H - T - B) * (1 - v / ymax);
+  const svg = el("svg:svg", {viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": title}, c);
+  for (const [a, b, rate] of DATA.bursts) {
+    el("svg:rect", {x: x(a), y: T, width: Math.max(0, x(Math.min(b, xmax)) - x(a)), height: H - T - B,
+      fill: "var(--band)"}, svg);
+    el("svg:text", {x: x(a) + 6, y: T + 14, text: DATA.bursts.length > 1 ? `burst, up to ${rate.toFixed(1)}× capacity`
+      : `spike, ${rate.toFixed(1)}× capacity`}, svg);
+  }
+  for (let k = 0; k <= 4; k++) {
+    const v = ymax * k / 4;
+    el("svg:line", {x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: k ? "var(--grid)" : "var(--axis)", "stroke-width": 1}, svg);
+    el("svg:text", {x: L - 8, y: y(v) + 4, "text-anchor": "end", text: fmt(v)}, svg);
+  }
+  if (ref) {
+    el("svg:line", {x1: L, x2: W - R, y1: y(ref.value), y2: y(ref.value), stroke: "var(--text-secondary)",
+      "stroke-width": 1}, svg);
+    el("svg:text", {x: W - R, y: y(ref.value) - 6, "text-anchor": "end", text: ref.label}, svg);
+  }
+  const step = xmax > 900 ? 300 : xmax > 400 ? 120 : 60;
+  for (let v = 0; v <= xmax; v += step) el("svg:text", {x: x(v), y: H - 14, "text-anchor": "middle",
+    text: v >= 60 ? `${Math.round(v / 60)} min` : "0"}, svg);
+  el("svg:text", {x: L, y: H - 1, text: "time since the policy's run started"}, svg);
+  for (const r of runs) {
+    if (!r[key].length) continue;
+    const d = r[key].map((p, i) => (i ? "L" : "M") + x(p[0]).toFixed(1) + "," + y(p[1]).toFixed(1)).join("");
+    el("svg:path", {d, fill: "none", stroke: color(r), "stroke-width": 2, "stroke-linejoin": "round",
+      "stroke-linecap": "round"}, svg);
+  }
+  const cross = el("svg:line", {y1: T, y2: H - B, stroke: "var(--axis)", "stroke-width": 1, visibility: "hidden"}, svg);
+  const dots = runs.map(r => el("svg:circle", {r: 4, fill: color(r), stroke: "var(--surface-1)", "stroke-width": 2,
+    visibility: "hidden"}, svg));
+  const hit = el("svg:rect", {x: L, y: T, width: W - L - R, height: H - T - B, fill: "transparent"}, svg);
+  hit.addEventListener("pointermove", e => {
+    const b = svg.getBoundingClientRect(), sx = (e.clientX - b.left) * W / b.width;
+    const xv = (sx - L) / (W - L - R) * xmax;
+    const near = xs.reduce((a, v) => Math.abs(v - xv) < Math.abs(a - xv) ? v : a, xs[0]);
+    cross.setAttribute("x1", x(near)); cross.setAttribute("x2", x(near)); cross.setAttribute("visibility", "visible");
+    const rows = [];
+    runs.forEach((r, i) => {
+      const p = r[key].find(q => q[0] === near);
+      if (p) { dots[i].setAttribute("cx", x(p[0])); dots[i].setAttribute("cy", y(p[1]));
+        dots[i].setAttribute("visibility", "visible"); rows.push({color: color(r), value: fmt(p[1]) + unit, name: r.name}); }
+      else dots[i].setAttribute("visibility", "hidden");
+    });
+    const cb = c.getBoundingClientRect();
+    tip.show(e.clientX - cb.left, e.clientY - cb.top, `${Math.round(near)} s`, rows);
+  });
+  hit.addEventListener("pointerleave", () => { tip.hide(); cross.setAttribute("visibility", "hidden");
+    dots.forEach(d => d.setAttribute("visibility", "hidden")); });
+  table(c, ["seconds", ...runs.map(r => r.name)],
+    xs.map(v => [String(Math.round(v)), ...runs.map(r => { const p = r[key].find(q => q[0] === v); return p ? fmt(p[1]) : "–"; })]));
+}
+
+const num = v => v == null ? "–" : String(v);
+const METRICS = [
+  ["n", "problems", num], ["goodput", "correct and on time", pct], ["accuracy", "correct", pct],
+  ["deadline_met", "on time", pct], ["goodput_baseline", "correct and on time, arrived below capacity", pct],
+  ["goodput_burst", "correct and on time, arrived above capacity", pct], ["cancelled", "cancelled at the tail", num],
+  ["latency_p50_s", "latency, median (s)", fmt], ["latency_p95_s", "latency, 95th percentile (s)", fmt],
+  ["thinking_tokens_mean", "thinking tokens per workflow", fmt], ["think", "think calls", num],
+  ["cut", "silent cuts", num], ["announced", "announced cuts", num], ["notices", "notices sent", num],
+  ["p_mean", "mean pressure", v => v == null ? "–" : v.toFixed(3)], ["queue_frac", "time with a vLLM queue", pct],
+  ["tpot_ms_mean", "decode time per token, mean (ms)", fmt]];
+const GLOSSARY = [
+  ["Correct and on time", "The answer matched MATH-500's and the whole workflow (plan, think, answer) finished before " +
+   "its deadline. This is the headline number."],
+  ["Deadline", "Arrival + slack x the problem's solo latency. Slack is 1.5, 3 or 6, drawn per problem."],
+  ["No control", "vLLM runs every request with the full thinking budget it asked for."],
+  ["Uniform cut", "Under pressure p, every running request's thinking budget drops to (1 - p) of what it asked for."],
+  ["Brownout", "Like a uniform cut, but each cut starts from the request's predicted length and is weighted by " +
+   "priority, so requests close to their deadline are cut less."],
+  ["Silent, announced", "Silent stops the thought when the budget runs out. Announced writes a sentence into the " +
+   "thought telling the model how many tokens it has left, so it can wrap up."],
+  ["Classifier", "An online word model in the gateway that learns thinking lengths from finished requests."],
+  ["Jev", "Open-Jev-2B, a small decision model on its own GPU, asked for each request's thinking length."],
+  ["Pressure", "0 to 1 per vLLM replica: the queue (waiting / running), or with a decode SLO how far decoding is " +
+   "past it ((time per token - SLO) / SLO), whichever is higher. Cuts start at 0.05."],
+  ["Capacity C", "Workflows per second the GPUs finish when they are full; the trace's rates are multiples of it."],
+  ["Spike", "The sharpest burst in the default BurstGPT window (Azure ChatGPT and GPT-4 traffic, KDD 25). Each " +
+   "request becomes a MATH-500 problem, longer original answers getting harder levels."]];
+
+function grid(c, head, rows, left = 1) {
+  const t = el("table", {}, el("div", {class: "scroll"}, c));
+  const tr = el("tr", {}, el("thead", {}, t));
+  head.forEach((h, i) => el("th", i < left ? {text: h, class: "l"} : {text: h}, tr));
+  const tb = el("tbody", {}, t);
+  for (const r of rows) { const row = el("tr", {}, tb); r.forEach((v, i) => el("td", i < left ? {text: v, class: "l"} : {text: v}, row)); }
+}
+
+function facts(c, items) {
+  const dl = el("dl", {class: "facts"}, c);
+  for (const [k, v] of items) if (v != null && v !== "") { el("dt", {text: k}, dl); el("dd", {text: String(v)}, dl); }
+}
+
+function headline() {
+  const runs = DATA.runs, none = runs.find(r => r.spec === "none");
+  const best = runs.reduce((a, r) => (r.goodput || 0) > (a.goodput || 0) ? r : a, runs[0]);
+  if (!best) return "";
+  return none && best !== none
+    ? `${best.name} kept ${pct(best.goodput)} of answers correct and on time, against ${pct(none.goodput)} with no control.`
+    : `${best.name} kept ${pct(best.goodput)} of answers correct and on time.`;
+}
+
+function charts() {
+  const runs = DATA.runs;
+  const c = card("Answers that were correct and on time",
+    "Every policy got the same arrivals and problems. On time means finished before the problem's deadline.");
+  const tip = tipBox(c), multiples = el("div", {class: "multiples"}, c);
+  bars(c, multiples, "Correct and on time", "goodput", tip);
+  bars(c, multiples, "Correct", "accuracy", tip);
+  bars(c, multiples, "On time", "deadline_met", tip);
+  table(c, ["policy", "n", "correct and on time", "correct", "on time", "latency p50 (s)", "latency p95 (s)",
+            "thinking tokens", "cuts", "notices", "cancelled"],
+        runs.map(r => [r.name, String(r.n), pct(r.goodput), pct(r.accuracy), pct(r.deadline_met), fmt(r.latency_p50_s),
+                       fmt(r.latency_p95_s), fmt(r.thinking_tokens_mean), num(r.cut), num(r.notices), num(r.cancelled)]));
+  lines("Requests running in vLLM", "All vLLM replicas together, averaged over 5 s. Every running request shares the " +
+        "GPU, so more of them means slower decoding for each.", "running", "");
+  lines("Requests waiting in the vLLM queue", "All vLLM replicas together, averaged over 5 s.", "queue", "");
+  if (runs.some(r => r.tpot.length))
+    lines("Decode time per output token", "Milliseconds per token for each running request (running ÷ tokens " +
+          "generated per second), averaged over replicas and 5 s." + (DATA.tpot_slo_ms ? " Above the SLO line, " +
+          "brownout counts the slowdown as pressure." : ""), "tpot", " ms",
+          DATA.tpot_slo_ms ? {value: DATA.tpot_slo_ms, label: `SLO ${DATA.tpot_slo_ms} ms`} : null);
+  lines("Latency by arrival time", "Seconds, median over the finished workflows that arrived in each 20 s window " +
+        "(cancelled ones are left out).", "latency", " s");
+  lines("Thinking tokens by arrival time", "Tokens per finished workflow over all its think calls, median per 20 s " +
+        "of arrivals; a cut shows up as fewer tokens.", "thinking", "");
+  const more = el("p", {class: "foot"}, document.getElementById("app"));
+  const a = el("a", {href: "#details", text: "Details: setup, statistics, every metric and a glossary"}, more);
+  a.style.color = "var(--text-secondary)";
+}
+
+function details() {
+  const runs = DATA.runs, S = DATA.setup || {};
+  let c = card("Result");
+  el("p", {class: "body", text: headline()}, c);
+  if (DATA.note) el("p", {class: "body", text: DATA.note}, c);
+  if (DATA.paired.length) {
+    el("p", {class: "note", text: "Every policy ran the same problems at the same times, so each pair is compared " +
+      "problem by problem. Gained: correct and on time with the second policy but not the first; lost: the reverse. " +
+      "p is an exact McNemar test; below 0.05 is unlikely to be chance."}, c);
+    grid(c, ["first", "second", "gained", "lost", "p"],
+         DATA.paired.map(q => [q.a, q.b, String(q.gained), String(q.lost), q.p.toFixed(3)]), 2);
+  }
+  c = card("What was run");
+  facts(c, [["Model", S.model], ["Problems", S.problems], ["Arrivals", S.arrivals], ["Load", S.load],
+            ["Capacity", S.capacity], ["Deadlines", S.deadlines], ["Thinking budgets", S.budgets], ["Tail", S.tail],
+            ["Brownout pressure", S.pressure], ["Length predictor", S.warmup], ["Seed", S.seed],
+            ["Policies", runs.map(r => r.name).join("; ")], ["Suite", DATA.suite],
+            ["Trace arguments", (DATA.trace_args || []).join(" ")]]);
+  c = card("Every metric", "One column per policy.");
+  grid(c, ["", ...runs.map(r => r.name)], METRICS.map(([k, name, f]) => [name, ...runs.map(r => f(r[k]))]));
+  const bands = [...new Set(runs.flatMap(r => Object.keys(r.by_band || {})))].sort();
+  if (bands.length) {
+    c = card("Correct and on time by MATH level", "Share correct and on time, with the number of problems at that level.");
+    grid(c, ["policy", ...bands], runs.map(r => [r.name, ...bands.map(b => {
+      const x = (r.by_band || {})[b];
+      return x ? `${pct(x.goodput)} (${x.n})` : "–";
+    })]));
+  }
+  c = card("Glossary");
+  facts(c, GLOSSARY);
+}
+
+const view = () => location.hash === "#details" ? "details" : "charts";
+
+function render() {
+  const app = document.getElementById("app");
+  app.replaceChildren();
+  const args = DATA.trace_args || [], wi = args.indexOf("--trace-window-h");
+  const spike = DATA.suite === "spike" || (wi >= 0 && parseFloat(args[wi + 1]) <= 0.5);
+  el("h1", {text: DATA.title || (spike ? "Thinking Brownout under one BurstGPT spike"
+    : args.length ? "Thinking Brownout under a BurstGPT replay" : "Thinking Brownout under a rate profile")}, app);
+  const nav = el("nav", {class: "tabs"}, app);
+  for (const [id, name] of [["charts", "Charts"], ["details", "Details"]]) {
+    const a = el("a", {href: "#" + id, text: name}, nav);
+    if (view() === id) a.setAttribute("aria-current", "page");
+  }
+  if (view() === "details") details(); else charts();
+}
+render();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+addEventListener("hashchange", () => { render(); scrollTo(0, 0); });
+</script>
+</body>
+</html>

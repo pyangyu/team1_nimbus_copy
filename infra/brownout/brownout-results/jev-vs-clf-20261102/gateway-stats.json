@@ -1,0 +1,153 @@
+{
+  "gateway": {
+    "requests": 1281,
+    "think": 535,
+    "passthrough": 746,
+    "rejected": 0,
+    "deferred": 0,
+    "deferred_s": 0.0,
+    "cut": 4,
+    "announced": 184,
+    "notices": 212,
+    "upstream_errors": 0,
+    "serial_waits": 0,
+    "serial_wait_s": 0.0,
+    "oracle_hits": 0,
+    "oracle_misses": 0,
+    "oracle_prompts": 126,
+    "reject_waiting": 2.0,
+    "admit_rate": 0.25,
+    "admit_burst": 8.0
+  },
+  "controller": {
+    "policy": "brownout",
+    "notice": "announced",
+    "predictor": "jev",
+    "cutting": false,
+    "in_flight": 0,
+    "cuts": 184
+  },
+  "pressure": {
+    "p": 0.0,
+    "waiting": 0.0,
+    "running": 0.0,
+    "tpot_ms": null,
+    "tpot_slo_ms": 35.0,
+    "samples": 5430,
+    "errors": 0,
+    "p_hist_deciles": [
+      2355,
+      410,
+      275,
+      151,
+      395,
+      311,
+      204,
+      193,
+      164,
+      972
+    ]
+  },
+  "replicas": [
+    {
+      "url": "http://172.31.0.228:8000/v1",
+      "routed": 746,
+      "requests": 1281,
+      "think": 535,
+      "load": 0.0,
+      "pressure": {
+        "p": 0.0,
+        "waiting": 0.0,
+        "running": 0.0,
+        "tpot_ms": null,
+        "tpot_slo_ms": 35.0,
+        "samples": 5430,
+        "errors": 0,
+        "p_hist_deciles": [
+          2355,
+          410,
+          275,
+          151,
+          395,
+          311,
+          204,
+          193,
+          164,
+          972
+        ]
+      }
+    }
+  ],
+  "jev": {
+    "submitted": 535,
+    "asked": 518,
+    "answered": 447,
+    "before_first_token": 79,
+    "during_decode": 368,
+    "after_finish": 71,
+    "dropped_finished": 17,
+    "tier_lowered": 207,
+    "tier_raised": 78,
+    "priority_changed": 312,
+    "wait_s": 78.841,
+    "mean_wait_s": 0.152,
+    "queued": 0,
+    "workers": 0
+  },
+  "classifier": {
+    "buckets": [
+      "0-32",
+      "32-128",
+      "128-256",
+      "256-512",
+      "512-1K",
+      "1K-2K",
+      "2K-4K",
+      "4K-8K",
+      "8K-16K",
+      "16K+"
+    ],
+    "current_model": "Qwen/Qwen3-4B",
+    "upgrades": 0,
+    "pressure": 0.0,
+    "shadow": true,
+    "pending": 0,
+    "updates": 245,
+    "jev": {
+      "calls": 518,
+      "failures": 0,
+      "skipped_busy": 0,
+      "last_error": null,
+      "servers": 2,
+      "call_s": 1109.122,
+      "mean_call_s": 2.141
+    },
+    "versions": {
+      "Qwen/Qwen3-4B": {
+        "labels": 88,
+        "censored": 200,
+        "window": 88,
+        "paired": {
+          "online": {
+            "n": 88,
+            "exact": 25,
+            "within_one": 59,
+            "under": 28,
+            "p_true": 20.1209
+          },
+          "jev": {
+            "n": 88,
+            "exact": 37,
+            "within_one": 69,
+            "under": 41,
+            "p_true": 14.9017
+          }
+        },
+        "exact": 0.2840909090909091,
+        "within_one": 0.6704545454545454,
+        "under": 0.3181818181818182,
+        "mean_abs_error": 1.1477272727272727
+      }
+    }
+  }
+}

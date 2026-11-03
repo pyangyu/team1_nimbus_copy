@@ -1,0 +1,39 @@
+{
+  "n": 64,
+  "accuracy": 0.875,
+  "errors": 0,
+  "rejected": 0,
+  "cancelled": 0,
+  "latency_p50_s": 806.8596,
+  "latency_p90_s": 946.893,
+  "latency_p95_s": 968.8619,
+  "latency_p99_s": 973.2336,
+  "rounds_mean": 1.7188,
+  "llm_calls_mean": 3.5312,
+  "prompt_tokens_mean": 614.6094,
+  "thinking_tokens_mean": 6911.2344,
+  "answer_tokens_mean": 1199.0781,
+  "deadline_met": 0.7812,
+  "correct_and_on_time": 0.6875,
+  "mode": "rate",
+  "t0": 1793636674.081482,
+  "wall_s": 1043.5,
+  "rate": 1.0,
+  "by_slack": {
+    "1.5": {
+      "n": 17,
+      "deadline_met": 0.2353,
+      "accuracy": 0.8824
+    },
+    "3.0": {
+      "n": 19,
+      "deadline_met": 0.9474,
+      "accuracy": 0.8947
+    },
+    "6.0": {
+      "n": 28,
+      "deadline_met": 1,
+      "accuracy": 0.8571
+    }
+  }
+}
