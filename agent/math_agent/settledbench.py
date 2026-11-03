@@ -14,7 +14,9 @@ The ground truth per row is a silent cut at that point followed by a full answer
 
 For each sampled problem (same draws as a sweep with that seed): plan, the solve prompt as the agent renders it,
 the uncut thinking (greedy, budget), then at every cut point (bucket edges below the length plus fixed fractions
-of the length) the three judges and the silent cut. Writes rows.jsonl and summary.json. The summary ranks the
+of the length) the three judges and the silent cut. Writes rows.jsonl, traces.jsonl (the uncut thinking with its
+token logprobs and stream trail, so a trace-reading judge can be scored offline on the same rows: see
+settledfeat.py) and summary.json. The summary ranks the
 judges (AUC against "the cut kept the answer right") and simulates an early-exit policy per judge: exit at the
 first cut point whose signal clears a threshold, and report accuracy against thinking tokens, with the oracle
 (earliest cut point that keeps the answer right) as the ceiling.
@@ -58,12 +60,17 @@ class Client:
             r.raise_for_status()
             self.model = r.json()["data"][0]["id"]
 
-    async def stream(self, prompt: str, max_tokens: int, stop: list[str]) -> tuple[str, int, str | None, list[tuple[int, int]]]:
-        """Greedy streamed completion: text, tokens, finish reason, and (tokens, chars) after every event."""
+    async def stream(self, prompt: str, max_tokens: int, stop: list[str], logprobs: bool = False,
+                     ) -> tuple[str, int, str | None, list[tuple[int, int]]]:
+        """Greedy streamed completion: text, tokens, finish reason, and (tokens, chars) after every event.
+        With logprobs, the per-token logprobs of the completion land in self.last_logprobs."""
         body = {"model": self.model, "prompt": prompt, "max_tokens": max_tokens, "temperature": 0.0, "stop": stop,
                 "stream": True, "stream_options": {"include_usage": True, "continuous_usage_stats": True},
                 "skip_special_tokens": False}
+        if logprobs:
+            body["logprobs"] = 1
         parts: list[str] = []
+        lps: list[float | None] = []
         n, nchars, finish, trail = 0, 0, None, []
         async with self.sem:
             self.calls += 1
@@ -83,10 +90,14 @@ class Client:
                             nchars += len(ch["text"])
                         if ch.get("finish_reason"):
                             finish = ch["finish_reason"]
+                        if logprobs and ch.get("logprobs"):
+                            lps.extend(ch["logprobs"].get("token_logprobs") or [])
                     if ev.get("usage"):
                         n = ev["usage"].get("completion_tokens", n)
                     trail.append((n, nchars))
         self.completion_tokens += n
+        if logprobs:
+            self.last_logprobs = lps
         return "".join(parts), n, finish, trail
 
     async def trial(self, prompt: str, max_tokens: int) -> tuple[str, float | None]:
@@ -140,12 +151,16 @@ def cut_points(used: int, edges=EDGES, fracs=FRACS, min_gap: float = 0.08) -> li
     return out
 
 
-async def one(cl: Client, jev, ex, budget: int, answer_tokens: int, final_tokens: int) -> list[dict]:
+async def one(cl: Client, jev, ex, budget: int, answer_tokens: int, final_tokens: int,
+              traces: list[dict] | None = None) -> list[dict]:
     plan_prefix = render_chat(prompts.plan_messages(ex.question)) + "<think>\n\n</think>\n\n"
     plan, _, _, _ = await cl.stream(plan_prefix, 128, ["<|im_end|>"])
     solve = render_chat(prompts.solve_messages(ex.question, plan, [])) + "<think>\n"
-    thinking, used, finish, trail = await cl.stream(solve, budget, ["</think>"])
+    thinking, used, finish, trail = await cl.stream(solve, budget, ["</think>"], logprobs=True)
     natural = finish == "stop"
+    if traces is not None:  # the raw material for any judge that reads the trace itself (settledfeat.py)
+        traces.append({"id": ex.id, "question": ex.question, "plan": plan, "thinking": thinking, "used": used,
+                       "natural": natural, "trail": trail, "token_logprobs": getattr(cl, "last_logprobs", [])})
 
     async def probe(th: str) -> tuple[str | None, float | None]:
         text, conf = await cl.trial(solve + th + EARLY_STOP + "</think>\n\n" + FINAL_PREFIX, final_tokens)
@@ -313,12 +328,13 @@ async def main(args) -> None:
     out.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     rows: list[dict] = []
+    traces: list[dict] = []
     done = 0
 
     async def run(ex):
         nonlocal done
         try:
-            r = await one(cl, jev, ex, args.budget, args.answer_tokens, args.final_tokens)
+            r = await one(cl, jev, ex, args.budget, args.answer_tokens, args.final_tokens, traces)
         except Exception as e:  # keep going; the row count tells
             r = [{"id": ex.id, "error": f"{type(e).__name__}: {e}"}]
         rows.extend(r)
@@ -332,6 +348,7 @@ async def main(args) -> None:
         await jev.aclose()
     good = [r for r in rows if "error" not in r]
     (out / "rows.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    (out / "traces.jsonl").write_text("".join(json.dumps(t) + "\n" for t in traces), encoding="utf-8")
     summary = {**summarize(good), "errors": len(rows) - len(good), "calls": cl.calls,
                "completion_tokens": cl.completion_tokens, "wall_s": round(time.time() - t0, 1),
                "budget": args.budget, "dataset": args.dataset, "seed": args.seed, "model": cl.model,
