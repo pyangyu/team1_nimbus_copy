@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from brownout_gateway import Controller, Gateway, PressureMonitor, create_app
+from brownout_gateway.answers import EARLY_STOP, FINAL_PREFIX
 from budget_classifier import BudgetClassifier
 
 KEY = "test-key"
@@ -12,9 +13,16 @@ TOK = "z "
 
 
 class FakeVLLM:
-    def __init__(self, lengths: dict[str, int], delay: float = 0.001, continuous: bool = True):
+    """Streams TOK until the prompt's natural length. A probe (final-answer prefill, not streamed) answers 4
+    once the thinking holds at least the prompt's needed length; below that the answer is still moving, so
+    it is the thinking length itself."""
+
+    def __init__(self, lengths: dict[str, int], delay: float = 0.001, continuous: bool = True,
+                 needed: dict[str, int] | None = None):
         self.lengths, self.delay, self.continuous = lengths, delay, continuous
+        self.needed = needed or {}
         self.requests: list[dict] = []
+        self.probes: list[int] = []
         self.aborted = 0
         self.on_token = None
 
@@ -28,6 +36,12 @@ class FakeVLLM:
         self.requests.append({"headers": dict(req.headers), "body": body, "host": req.url.host})
         if req.headers.get("authorization") != f"Bearer {KEY}":
             return httpx.Response(401, json={"error": "Unauthorized"})
+        if not body.get("stream") and body["prompt"].endswith(FINAL_PREFIX):
+            thinking = body["prompt"].rpartition("<think>\n")[2].partition(EARLY_STOP)[0]
+            n = thinking.count(TOK)
+            self.probes.append(n)
+            need = next((v for k, v in self.needed.items() if k in body["prompt"]), 0)
+            return httpx.Response(200, json={"choices": [{"index": 0, "text": ("4" if n >= need else str(n)) + "}."}]})
         if req.headers.get("x-lifeline-phase") == "answer":
             pieces, fin = ["The answer is \\boxed{4}."][: body["max_tokens"]], "stop"
         else:
@@ -59,12 +73,13 @@ class FakeVLLM:
         return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=gen())
 
 
-def make(lengths=None, policy="brownout", notice="silent", jev=None, predictor="jev", upstream="http://vllm/v1", **kw):
-    fake = FakeVLLM(lengths or {"easy": 50, "hard": 2000})
+def make(lengths=None, policy="brownout", notice="silent", jev=None, predictor="jev", mode="proportional",
+         needed=None, upstream="http://vllm/v1", **kw):
+    fake = FakeVLLM(lengths or {"easy": 50, "hard": 2000}, needed=needed)
     http = httpx.AsyncClient(transport=httpx.MockTransport(fake.handler))
     monitor = PressureMonitor()
     clf = BudgetClassifier(dim=1 << 12, jev=jev)
-    ctl = Controller(monitor, policy=policy, notice=notice, predictor=predictor, interval=0.002)
+    ctl = Controller(monitor, policy=policy, notice=notice, predictor=predictor, mode=mode, interval=0.002)
     gw = Gateway(upstream, clf, ctl, monitor, upstream_key=KEY, client_key=KEY, http=http, **kw)
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(gw, background=False)),
                                base_url="http://gw", headers={"Authorization": f"Bearer {KEY}"})

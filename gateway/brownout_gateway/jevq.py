@@ -83,6 +83,8 @@ class JevScheduler:
             a.jev_tier = pred.label
         if self.controller.predictor not in JEV_PREDICTORS:
             return
+        if pred is not None:
+            a.set_probs(pred.probs, "jev")
         if pred is not None and pred.budget != a.tier_budget:
             self.counts["tier_lowered" if pred.budget < a.tier_budget else "tier_raised"] += 1
             a.tier, a.tier_budget = pred.label, pred.budget

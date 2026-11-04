@@ -20,9 +20,11 @@ from budget_classifier import BudgetClassifier
 
 from .controller import Active, Controller
 from .jevq import JevScheduler
+from .judge import JudgeScheduler
 from .pressure import PressureMonitor
 from .priority import heuristic
 from .routing import Replica, Router
+from .prober import ProbeJob, Prober
 
 DEFAULT_NOTICE = "\n\n<budget_cut left={N}>\n"
 NOTICE_TEXTS = {"tag": DEFAULT_NOTICE,
@@ -42,7 +44,12 @@ class Gateway:
                  reject_waiting: float = 8, defer_timeout: float = 60.0, defer_poll: float = 0.25,
                  admit_rate: float = 0.25, admit_burst: float = 8, clock=time.monotonic,
                  notice_text: str = DEFAULT_NOTICE, serial_timeout: float = 10.0,
-                 http: httpx.AsyncClient | None = None):
+                 http: httpx.AsyncClient | None = None, labels: str = "length",
+                 probe_concurrency: int = 2, probe_edges: int = 3,
+                 judge_from: int = 256, judge_every: int = 512, judge_signal: str = "settled",
+                 judge_always: bool = False, judge_backend: str = "jev", judge_feat=None):
+        if labels not in ("length", "needed"):
+            raise ValueError("labels must be 'length' or 'needed'")
         urls = [u.strip().rstrip("/") for u in (upstream.split(",") if isinstance(upstream, str) else upstream)
                 if u.strip()]
         monitors = monitors or [monitor] + [PressureMonitor() for _ in urls[1:]]
@@ -53,6 +60,11 @@ class Gateway:
         self.clf, self.controller, self.monitor = clf, controller, monitors[0]
         controller.monitors = monitors
         self.jevq = JevScheduler(clf, controller, concurrency=clf.jev.max_inflight if clf.jev else 1)
+        self.labels = labels
+        self.prober = Prober(self, concurrency=probe_concurrency, max_edges=probe_edges, enabled=labels == "needed")
+        self.judge = JudgeScheduler(self, concurrency=clf.jev.max_inflight if clf.jev else 1, signal=judge_signal,
+                                    backend=judge_backend, feat=judge_feat)
+        self.judge_from, self.judge_every, self.judge_always = judge_from, judge_every, judge_always
         self.upstream_key, self.client_key = upstream_key, client_key
         self.reject_waiting, self.defer_timeout, self.defer_poll = reject_waiting, defer_timeout, defer_poll
         self.notice_text, self.serial_timeout = notice_text, serial_timeout
@@ -168,8 +180,11 @@ class Gateway:
             k = self.clf.buckets.index(known) if known is not None else None
             a = Active(rid, requested, requested if k is None else self.clf.buckets.budget(k), prio, requested,
                        tier="unknown" if k is None else self.clf.buckets.label(k), replica=replica)
+            if k is not None:
+                a.set_probs([1.0 if i == k else 0.0 for i in range(self.clf.buckets.n)], "oracle")
         elif self.controller.predictor == "online" or self.clf.jev is None:
             a = Active(rid, requested, pred.budget, prio, requested, tier=pred.label, replica=replica)
+            a.set_probs(pred.probs, "online")
         else:
             a = Active(rid, requested, requested, prio, requested, tier="pending", replica=replica)
         self.controller.start(a)
@@ -186,6 +201,8 @@ class Gateway:
         first = a.limit
         up = {**body, "max_tokens": a.limit, "stream": True,
               "stream_options": {"include_usage": True, "continuous_usage_stats": True}}
+        if self.judging and self.judge.wants_logprobs:
+            up["logprobs"] = 1  # the feature judge reads the model's own token logprobs; never forwarded
         r = await self._open(up, h, replica)
         if r.status_code >= 400:
             content = await r.aread()
@@ -207,6 +224,11 @@ class Gateway:
         done_before, seg, prompt_tokens = 0, 0, None
         finish, cut, notices = None, False, 0
         cap, last_left = a.limit, 0
+        marks: dict[int, int] = {}  # bucket edge (tokens) -> characters of thinking streamed when it was crossed
+        nchars = 0
+        lps: list[float | None] = []
+        edges = self.clf.buckets.edges[1:]
+        next_judge = self.judge_from
         try:
             while True:
                 action, left = None, 0
@@ -226,6 +248,8 @@ class Gateway:
                                 seg += 1
                         if ch.get("finish_reason"):
                             finish = ch["finish_reason"]
+                        if ch.get("logprobs"):
+                            lps.extend(ch["logprobs"].get("token_logprobs") or [])
                     if u:
                         seg = u.get("completion_tokens", seg)
                         if prompt_tokens is None:
@@ -233,6 +257,13 @@ class Gateway:
                     a.used = done_before + seg
                     if text:
                         parts.append(text)
+                        nchars += len(text)
+                        for e in edges:
+                            if e <= a.used and e not in marks:
+                                marks[e] = nchars
+                        if a.used >= next_judge and self.judging:
+                            next_judge = a.used + self.judge_every
+                            self.judge.submit(a, up["prompt"], "".join(parts), a.used, lps)
                         yield sse({"object": "text_completion", "model": up.get("model"),
                                    "choices": [{"index": 0, "text": text, "finish_reason": None}]})
                     if a.limit < cap and finish is None:
@@ -272,7 +303,8 @@ class Gateway:
                     "priority_source": a.priority_source,
                     "budget": meta["first_limit"], "limit": a.limit, "cut": cut or announced,
                     "cut_from": a.cut_from, "announced": announced, "notices": notices,
-                    "policy": self.controller.policy, "replica": a.replica}
+                    "policy": self.controller.policy, "replica": a.replica,
+                    "settled": a.settled, "judged_at": a.judged_at, "judgments": a.judgments}
             yield sse({"object": "text_completion", "choices": [{"index": 0, "text": "", "finish_reason": finish}]})
             yield sse({"object": "text_completion", "choices": [],
                        "usage": {"prompt_tokens": prompt_tokens or 0, "completion_tokens": a.used,
@@ -283,9 +315,19 @@ class Gateway:
             await r.aclose()
             self.controller.finish(a)
             natural = finish == "stop" and not cut and not notices
-            if natural:
-                self.oracle[meta["key"]] = a.used
-            obs = self.clf.observe(a.rid, a.used, finished=natural, model=meta["model"])
+            probed = False
+            if self.prober.enabled and not cut and not notices and a.cut_from is None and a.limit >= a.requested:
+                # the request ended on its own terms (closed its thinking, or hit the client's budget), with
+                # no limit from the controller: the prober finds how much of that thinking the answer
+                # needed and observes the result
+                probed = self.prober.submit(ProbeJob(a.rid, up["prompt"], "".join(parts), marks, a.used, natural,
+                                                     meta["model"], meta["key"], self._up_headers({})))
+            if probed:
+                obs = {"label": "probing"}
+            else:
+                if natural:
+                    self.oracle[meta["key"]] = a.used
+                obs = self.clf.observe(a.rid, a.used, finished=natural, model=meta["model"])
             if self.log is not None:
                 row = {**{k: v for k, v in meta.items() if k not in ("t0", "key")}, "ts": meta["t0"],
                        "latency_s": round(time.time() - meta["t0"], 3), "used": a.used, "finish": finish,
@@ -295,9 +337,16 @@ class Gateway:
                        "p_end": round(self.controller.p(a), 3), "policy": self.controller.policy,
                        "notice": self.controller.notice, "observed": obs.get("label"),
                        "tier": a.tier, "tier_budget": a.tier_budget, "jev_tier": a.jev_tier, "jev_at": a.jev_at,
-                       "predictor": self.controller.predictor}
+                       "predictor": self.controller.predictor, "mode": self.controller.mode,
+                       "probs_source": a.probs_source, "probs": a.probs,
+                       "settled": a.settled, "judged_at": a.judged_at, "judgments": a.judgments}
                 self.log.write(json.dumps(row) + "\n")
                 self.log.flush()
+
+    @property
+    def judging(self) -> bool:
+        """Judge the thinking so far: in the settled cut mode, or always when asked (for the log)."""
+        return self.judge.enabled and (self.judge_always or self.controller.judging)
 
     async def models(self, request: Request) -> Response:
         if not self.authorized(request):
@@ -311,9 +360,36 @@ class Gateway:
         body = await request.json()
         try:
             self.controller.set_policy(body.get("policy", self.controller.policy), body.get("notice"),
-                                       body.get("predictor"))
+                                       body.get("predictor"), body.get("cut"))
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
+        if "max_frac" in body:
+            f = float(body["max_frac"])
+            if not 0 < f <= 1:
+                return JSONResponse({"error": "max_frac must be in (0, 1]"}, status_code=400)
+            self.controller.max_frac = f
+        if "exit_at" in body:
+            e = body["exit_at"]
+            if e is not None and not 0 < float(e) <= 1:
+                return JSONResponse({"error": "exit_at must be in (0, 1] or null"}, status_code=400)
+            self.controller.exit_at = None if e is None else float(e)
+        if "bank" in body:
+            self.controller.use_bank = bool(body["bank"])
+        if "judge_signal" in body:
+            try:
+                JudgeScheduler(self, signal=body["judge_signal"])
+            except ValueError as e:
+                return JSONResponse({"error": str(e)}, status_code=400)
+            self.judge.signal = body["judge_signal"]
+        if "judge" in body:
+            try:
+                JudgeScheduler(self, backend=body["judge"])
+            except ValueError as e:
+                return JSONResponse({"error": str(e)}, status_code=400)
+            self.judge.backend = body["judge"]
+            if self.judge.backend == "feat" and self.judge.feat is None:
+                from budget_classifier.tailfeat import FeatureJudge
+                self.judge.feat = FeatureJudge.load()
         if "reject_waiting" in body:
             self.reject_waiting = float(body["reject_waiting"])
         if "admit_rate" in body:
@@ -326,6 +402,7 @@ class Gateway:
             self.clf.restore()
         elif body.get("reset"):
             self.clf.reset()
+            self.controller.reset_bank()
         self.refill()
         self.admitted.clear()
         return JSONResponse(self.controller.stats())
@@ -333,12 +410,13 @@ class Gateway:
     def stats(self) -> dict:
         return {"gateway": {**self.counts, "deferred_s": round(self.counts["deferred_s"], 2),
                             "serial_wait_s": round(self.counts["serial_wait_s"], 3),
-                            "oracle_prompts": len(self.oracle),
+                            "oracle_prompts": len(self.oracle), "labels": self.labels,
                             "reject_waiting": self.reject_waiting, "admit_rate": self.admit_rate,
                             "admit_burst": self.admit_burst},
                 "controller": self.controller.stats(), "pressure": self.router.pressure_stats(),
                 "replicas": self.router.stats(),
-                "jev": self.jevq.stats(), "classifier": self.clf.stats()}
+                "jev": self.jevq.stats(), "probe": self.prober.stats(), "judge": self.judge.stats(),
+                "classifier": self.clf.stats()}
 
 
 def create_app(gw: Gateway, *, state_path: str | Path | None = None, background: bool = True) -> Starlette:

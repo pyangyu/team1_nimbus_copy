@@ -9,7 +9,8 @@ import httpx
 
 from . import Example
 
-DATASETS = ("math500", "aime2026", "gsm8k")
+DATASETS = ("math500", "aime2026", "gsm8k", "mixed")
+MIXED = ("gsm8k", "math500", "aime2026")  # one stream of very different needs: ~300, ~3K and ~10K thinking tokens
 URLS = {
     "math500": "https://huggingface.co/datasets/HuggingFaceH4/MATH-500/resolve/main/test.jsonl",
     "aime2026": "https://datasets-server.huggingface.co/rows?dataset=MathArena/aime_2026"
@@ -39,7 +40,18 @@ def _raw(name: str) -> list[dict]:
     return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
+def source(ex: Example) -> str:
+    """Which dataset an example came from (the id prefix), for mixed streams."""
+    if ex.id.startswith("gsm8k/"):
+        return "gsm8k"
+    if ex.id.startswith("aime_2026/"):
+        return "aime2026"
+    return "math500"
+
+
 def load(name: str = "math500", levels: list[int] | None = None) -> list[Example]:
+    if name == "mixed":
+        return [e for n in MIXED for e in load(n, levels)]
     if name == "math500":
         items = [Example(x["unique_id"], x["problem"], x["answer"], "math", int(x["level"]))
                  for x in _raw(name)]

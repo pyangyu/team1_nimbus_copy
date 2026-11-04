@@ -18,6 +18,11 @@ after --warmup-s over --duration-s give capacity_wf_s. --profile replaces the
 fixed --rate with Poisson segments at rate * --capacity; arrival times, problems
 and slacks are fixed by --seed. --trace replays a window of a real trace at a mean rate of
 --load * --capacity with problems woven in by response length (see trace.py).
+
+Arrivals are Poisson at --rate, or replayed from the BurstGPT trace (--arrivals
+burstgpt) rescaled to the same mean rate. With --dataset mixed the stream draws
+from GSM8K, MATH-500 and AIME 2026 at --mix weights, each source with its own
+thinking budget (--budgets) and solo latency for deadlines (--solos).
 """
 from __future__ import annotations
 
@@ -33,7 +38,32 @@ from pathlib import Path
 
 from . import metrics, trace, workload
 from .common import add_common_args, client_from, config_from, examples_from
+from .datasets import burstgpt
+from .datasets.math import MIXED, source
 from .workflow import run_workflow
+
+DEFAULT_MIX = "gsm8k=0.5,math500=0.35,aime2026=0.15"
+DEFAULT_BUDGETS = "gsm8k=1024,math500=4096,aime2026=6144"  # vLLM serves 8K of context: 6144 thinking + a 1024 answer fits
+DEFAULT_SOLOS = "gsm8k=60,math500=240,aime2026=600"
+
+
+def parse_map(spec: str | None, cast=float) -> dict:
+    out = {}
+    for part in (spec or "").split(","):
+        if part.strip():
+            k, v = part.split("=")
+            out[k.strip()] = cast(v)
+    return out
+
+
+def draw_mixed(pool, n: int, mix: dict[str, float], rng: random.Random):
+    """n examples with sources drawn at the mix weights, each uniformly within its source."""
+    by = {s: [] for s in MIXED}
+    for e in pool:
+        by[source(e)].append(e)
+    names = [s for s in MIXED if by[s] and mix.get(s, 0) > 0]
+    weights = [mix[s] for s in names]
+    return [rng.choice(by[rng.choices(names, weights)[0]]) for _ in range(n)]
 
 
 def load_solo(path: str | None) -> dict[str, float]:
@@ -50,6 +80,9 @@ def load_solo(path: str | None) -> dict[str, float]:
 async def main(args) -> None:
     rng = random.Random(args.seed)
     solo = load_solo(args.solo_ref)
+    mixed = args.dataset == "mixed"
+    budgets = parse_map(args.budgets or (DEFAULT_BUDGETS if mixed else None), int)
+    solos = parse_map(args.solos or (DEFAULT_SOLOS if mixed else None))
     if args.workload:
         comps = workload.parse_workload(args.workload)
         pools = workload.pools(comps)
@@ -72,18 +105,31 @@ async def main(args) -> None:
     mode = "closed" if args.closed else "profile" if profile else "trace" if args.trace else "rate"
     trace_tags: list[dict] = []
     trace_meta: dict = {}
+    offsets: list[float] = []
     if mode == "rate":
-        examples = [sampler.draw() for _ in range(args.n)]
+        if mixed:
+            examples = draw_mixed([e for pool in sampler.pools for e in pool], args.n, parse_map(args.mix or DEFAULT_MIX), rng)
+        else:
+            examples = [sampler.draw() for _ in range(args.n)]
         total = args.n
+        if args.arrivals == "burstgpt":
+            offsets = burstgpt.arrivals(args.n, args.rate, args.seed)
+        else:
+            t = 0.0
+            for _ in range(args.n):
+                offsets.append(t)
+                t += rng.expovariate(args.rate)
     elif mode == "profile":
         arr = workload.arrivals(profile, args.capacity, args.seed)
         examples = [sampler.draw() for _ in arr]
         total = len(arr)
+        offsets = [off for off, _ in arr]
     elif mode == "trace":
         rp = trace.replay(trace.load(args.trace_log), [e for pool in sampler.pools for e in pool], args.capacity,
                           start_h=args.trace_start_h, window_h=args.trace_window_h, duration_s=args.trace_s,
                           load=args.load, bin_s=args.bin_s, seed=args.seed)
         arr, examples, profile, total = rp.arrivals, rp.examples, rp.profile, len(rp.arrivals)
+        offsets = [off for off, _ in arr]
         trace_tags = [{"trace_t": r.t, "trace_model": r.model, "trace_response_tokens": r.response_tokens}
                       for r in rp.requests]
         trace_meta = {"trace": args.trace, "log": args.trace_log, "start_h": args.trace_start_h,
@@ -100,7 +146,9 @@ async def main(args) -> None:
     out = Path(args.out or f"runs/load-{name}-{time.strftime('%Y%m%d-%H%M%S')}")
     calls, wfs = metrics.Jsonl(out / "calls.jsonl"), metrics.Jsonl(out / "workflows.jsonl")
     cfg_dump = {k: v for k, v in vars(args).items() if k != "api_key"}
-    (out / "config.json").write_text(json.dumps({**cfg_dump, "default_solo_s": default_solo}, indent=2))
+    (out / "config.json").write_text(json.dumps({**cfg_dump, "default_solo_s": default_solo, "budgets": budgets,
+                                                 "solos": solos, "arrival_offsets": [round(x, 3) for x in offsets],
+                                                 "burstiness": burstgpt.burstiness(offsets)}, indent=2))
 
     done: list[dict] = []
 
@@ -114,8 +162,17 @@ async def main(args) -> None:
         arrival = time.time()
         slack = rng.choice(slacks) if slack is None else slack
         wcfg, solo_s, budget = plan(ex)
+        src = source(ex)
+        if src in budgets:
+            b = budgets[src]
+            # retries grow the budget by the sweep's ratio but never past the sweep's own max budget (the context window)
+            wcfg = replace(wcfg, think_budget=b, max_budget=max(b, min(int(b * cfg.max_budget / max(cfg.think_budget, 1)), cfg.max_budget)))
+            budget = b
+        if src in solos and ex.id not in solo:
+            solo_s = solos[src]
         deadline = arrival + slack * solo_s
-        tags = {"slack": slack, "band": workload.band(ex), "level": ex.level, "budget": budget, **(extra or {})}
+        tags = {"slack": slack, "band": workload.band(ex), "level": ex.level, "budget": budget, "source": src,
+                **(extra or {})}
         try:
             r = await run_workflow(ex, llm, wcfg, workflow_id=f"w{i:05d}", arrival=arrival,
                                    deadline=deadline, on_call=lambda c: calls.write(c.record()))
@@ -145,8 +202,8 @@ async def main(args) -> None:
     try:
         if mode == "rate":
             for i, ex in enumerate(examples):
+                await asyncio.sleep(max(0.0, t0 + offsets[i] - time.time()))
                 tasks.append(asyncio.create_task(one(i, ex)))
-                await asyncio.sleep(rng.expovariate(args.rate))
             await asyncio.gather(*tasks)
         elif mode in ("profile", "trace"):
             for i, ((off, seg), ex) in enumerate(zip(arr, examples)):
@@ -185,7 +242,7 @@ async def main(args) -> None:
     else:
         s = {**metrics.summarize(done), "mode": mode, "t0": t0, "wall_s": round(time.time() - t0, 1)}
         if mode == "rate":
-            s["rate"] = args.rate
+            s.update({"rate": args.rate, "arrivals": args.arrivals, "burstiness": burstgpt.burstiness(offsets)})
         else:
             s.update({"capacity": args.capacity, "profile": args.profile or trace.spec(profile),
                       "profile_s": workload.total_s(profile),
@@ -196,6 +253,10 @@ async def main(args) -> None:
                                         for b in sorted({w["band"] for w in done})}})
             if trace_meta:
                 s["trace"] = trace_meta
+        s["by_source"] = {src: {k: metrics.summarize(sub).get(k) for k in ("n", "deadline_met", "accuracy",
+                                                                       "correct_and_on_time", "thinking_tokens_mean")}
+                          for src in sorted({w["source"] for w in done})
+                          for sub in [[w for w in done if w["source"] == src]]}
     by_slack = {}
     for sl in slacks:
         sub = [w for w in (win if mode == "closed" else done) if w["slack"] == sl]
@@ -240,6 +301,11 @@ def cli(argv=None) -> None:
     p.add_argument("--only-ref", action="store_true", help="sample only questions in the solo reference")
     p.add_argument("--default-solo-s", type=float, default=30.0)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--arrivals", default="poisson", choices=("poisson", "burstgpt"),
+                   help="Poisson at --rate, or BurstGPT trace timing rescaled to --rate")
+    p.add_argument("--mix", help=f"mixed: source weights (default {DEFAULT_MIX})")
+    p.add_argument("--budgets", help=f"per-source thinking budgets, e.g. {DEFAULT_BUDGETS} (mixed default)")
+    p.add_argument("--solos", help=f"per-source solo latency for deadlines, e.g. {DEFAULT_SOLOS} (mixed default)")
     args = p.parse_args(argv)
     if sum(x is not None for x in (args.rate, args.profile, args.closed, args.trace)) != 1:
         p.error("give exactly one of --rate, --profile, --closed, --trace")

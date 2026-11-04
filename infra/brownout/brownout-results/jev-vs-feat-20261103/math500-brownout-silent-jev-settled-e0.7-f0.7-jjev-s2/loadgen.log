@@ -1,0 +1,79 @@
+   1/32 OK on-time   86.8s slack=6.0
+   2/32 OK on-time  126.1s slack=1.5
+   3/32 OK on-time  197.2s slack=3.0
+   4/32 OK on-time  200.2s slack=3.0
+   5/32 OK on-time  199.2s slack=6.0
+   6/32 OK on-time  247.0s slack=1.5
+   7/32 OK on-time  307.8s slack=6.0
+   8/32 OK on-time  302.2s slack=6.0
+   9/32 OK on-time  314.6s slack=3.0
+  10/32 OK on-time  343.8s slack=6.0
+  11/32 OK on-time  353.3s slack=3.0
+  12/32 OK on-time  359.8s slack=6.0
+  13/32 OK on-time  380.8s slack=6.0
+  14/32 OK on-time  369.2s slack=1.5
+  15/32 OK on-time  409.3s slack=1.5
+  16/32 OK on-time  465.1s slack=3.0
+  17/32 OK on-time  467.8s slack=6.0
+  18/32 OK on-time  476.3s slack=3.0
+  19/32 OK on-time  481.9s slack=3.0
+  20/32 OK on-time  498.6s slack=3.0
+  21/32 OK on-time  486.1s slack=6.0
+  22/32 OK on-time  485.3s slack=6.0
+  23/32 OK on-time  500.7s slack=6.0
+  24/32 OK LATE     488.1s slack=1.5
+  25/32 OK LATE     515.1s slack=1.5
+  26/32 X  on-time  509.6s slack=3.0
+  27/32 OK on-time  512.2s slack=3.0
+  28/32 X  on-time  506.3s slack=6.0
+  29/32 OK on-time  510.2s slack=6.0
+  30/32 OK on-time  514.3s slack=6.0
+  31/32 X  on-time  525.0s slack=6.0
+  32/32 X  on-time  523.1s slack=6.0
+{
+  "n": 32,
+  "accuracy": 0.875,
+  "errors": 0,
+  "rejected": 0,
+  "latency_p50_s": 467.772,
+  "latency_p90_s": 514.2879,
+  "latency_p99_s": 525.0368,
+  "rounds_mean": 1.9062,
+  "llm_calls_mean": 3.75,
+  "prompt_tokens_mean": 633.3438,
+  "thinking_tokens_mean": 7474.3438,
+  "answer_tokens_mean": 1402.0938,
+  "deadline_met": 0.9375,
+  "correct_and_on_time": 0.8125,
+  "rate": 2.0,
+  "wall_s": 531.2,
+  "arrivals": "poisson",
+  "burstiness": 0.8499003816555586,
+  "by_source": {
+    "math500": {
+      "n": 32,
+      "deadline_met": 0.9375,
+      "accuracy": 0.875,
+      "correct_and_on_time": 0.8125,
+      "thinking_tokens_mean": 7474.3438
+    }
+  },
+  "by_slack": {
+    "1.5": {
+      "n": 6,
+      "deadline_met": 0.6667,
+      "accuracy": 1
+    },
+    "3.0": {
+      "n": 10,
+      "deadline_met": 1,
+      "accuracy": 0.9
+    },
+    "6.0": {
+      "n": 16,
+      "deadline_met": 1,
+      "accuracy": 0.8125
+    }
+  }
+}
+wrote /opt/brownout/results/jev-vs-feat-20261103/math500-brownout-silent-jev-settled-e0.7-f0.7-jjev-s2

@@ -10,7 +10,7 @@ tar xzf /tmp/src.tgz -C $SRC
 [[ -x /opt/brownout/venv/bin/python ]] || uv venv -q --python 3.12 /opt/brownout/venv
 PY=/opt/brownout/venv/bin/python
 if [[ $ROLE == jev ]]; then
-  uv pip install -q --python $PY -e $SRC/classifier -e $SRC/gateway
+  uv pip install -q --python $PY -e $SRC/classifier -e $SRC/gateway -e "$SRC/agent[test,math]"
   JEV_ARGS=""
   if [[ "${BROWNOUT_JEV:-1}" == 0 ]]; then
     for unit in $(systemctl list-units --all --plain --no-legend 'open-jev@*' | awk '{print $1}'); do
@@ -61,7 +61,7 @@ if [[ $ROLE == jev ]]; then
 After=network-online.target
 [Service]
 EnvironmentFile=/etc/brownout-gateway.env
-ExecStart=$PY -m brownout_gateway.cli --upstream $UPSTREAM --host 0.0.0.0 --port 9000 $JEV_ARGS ${BROWNOUT_NOTICE:+--notice-text $BROWNOUT_NOTICE} ${BROWNOUT_TPOT_SLO_MS:+--tpot-slo-ms $BROWNOUT_TPOT_SLO_MS} --state /var/lib/brownout/classifier.npz --log /var/lib/brownout/gateway.jsonl
+ExecStart=$PY -m brownout_gateway.cli --upstream $UPSTREAM --host 0.0.0.0 --port 9000 $JEV_ARGS ${BROWNOUT_NOTICE:+--notice-text $BROWNOUT_NOTICE} ${BROWNOUT_TPOT_SLO_MS:+--tpot-slo-ms $BROWNOUT_TPOT_SLO_MS} --state /var/lib/brownout/classifier.npz --log /var/lib/brownout/gateway.jsonl ${BROWNOUT_GATEWAY_ARGS:-}
 Restart=always
 [Install]
 WantedBy=multi-user.target

@@ -102,3 +102,23 @@ def test_calls_spread_over_several_servers():
     a, b = asyncio.run(go())
     assert a is not None and b is not None and sorted(hosts) == ["jev1", "jev2"]
     assert jev.call_s > 0 and set(jev.url_inflight.values()) == {0}
+
+
+def test_settled_judge_asks_a_score_and_a_noul_question():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        body = json.loads(req.content)
+        seen.append(body)
+        probs = {"0": 0.05, "1": 0.15, "2": 0.3, "3": 0.5}
+        return httpx.Response(200, json={"answers": {
+            "settled": {"type": "score", "probabilities": probs, "score": 2.25, "confidence": 0.5},
+            "done": {"type": "noul", "noul": 0.8}}})
+    jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=httpx.MockTransport(handler))
+    out = asyncio.run(jev.ask_settled("Solve x.", "I think x = 4. Let me verify." * 200, 1500))
+    q, st = seen[0]["questions"], seen[0]["state"]
+    assert q["settled"]["type"] == "score" and len(q["settled"]["criteria"]) == 4 and q["done"]["type"] == "noul"
+    assert st["thinking_so_far"]["tokens"] == 1500 and st["thinking_so_far"]["truncated_at_start"]
+    assert len(st["thinking_so_far"]["tail"]) == 1500 and st["request"]["prompt_head"] == "Solve x."
+    assert abs(out["settled"] - 0.8) < 1e-9 and out["done"] == 0.8 and abs(out["level"] - 2.25) < 1e-9
+    assert out["ms"] >= 0 and jev.failures == 0
