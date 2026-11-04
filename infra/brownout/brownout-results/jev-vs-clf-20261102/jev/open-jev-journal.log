@@ -1,0 +1,302 @@
+Oct 29 04:38:44 ip-172-31-89-192 python[1614]: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Oct 29 04:38:45 ip-172-31-89-192 python[1614]: {"url": "http://127.0.0.1:8792", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}
+Oct 29 05:04:35 ip-172-31-89-192 systemd[1]: Stopping open-jev@8791.service...
+Oct 29 05:04:36 ip-172-31-89-192 systemd[1]: open-jev@8791.service: Deactivated successfully.
+Oct 29 05:04:36 ip-172-31-89-192 systemd[1]: Stopped open-jev@8791.service.
+Oct 29 05:04:36 ip-172-31-89-192 systemd[1]: open-jev@8791.service: Consumed 1min 27.541s CPU time.
+Oct 29 05:04:36 ip-172-31-89-192 systemd[1]: Started open-jev@8791.service.
+Oct 29 05:04:36 ip-172-31-89-192 systemd[1]: Stopping open-jev@8792.service...
+Oct 29 05:04:36 ip-172-31-89-192 systemd[1]: open-jev@8792.service: Deactivated successfully.
+Oct 29 05:04:36 ip-172-31-89-192 systemd[1]: Stopped open-jev@8792.service.
+Oct 29 05:04:36 ip-172-31-89-192 systemd[1]: open-jev@8792.service: Consumed 12.180s CPU time.
+Oct 29 05:04:36 ip-172-31-89-192 systemd[1]: Started open-jev@8792.service.
+Oct 29 05:04:40 ip-172-31-89-192 python[2307]: [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Oct 29 05:04:41 ip-172-31-89-192 python[2344]: [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Oct 29 05:04:42 ip-172-31-89-192 python[2307]: [transformers] The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Oct 29 05:04:42 ip-172-31-89-192 python[2344]: [transformers] The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Oct 29 05:04:43 ip-172-31-89-192 python[2307]: [528B blob data]
+Oct 29 05:04:43 ip-172-31-89-192 python[2344]: [534B blob data]
+Oct 29 05:04:44 ip-172-31-89-192 python[2307]: {"url": "http://127.0.0.1:8791", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}
+Oct 29 05:04:44 ip-172-31-89-192 python[2344]: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Oct 29 05:04:44 ip-172-31-89-192 python[2344]: {"url": "http://127.0.0.1:8792", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}
+Oct 29 07:08:42 ip-172-31-89-192 systemd[1]: Stopping open-jev@8791.service...
+Oct 29 07:08:42 ip-172-31-89-192 systemd[1]: open-jev@8791.service: Deactivated successfully.
+Oct 29 07:08:42 ip-172-31-89-192 systemd[1]: Stopped open-jev@8791.service.
+Oct 29 07:08:42 ip-172-31-89-192 systemd[1]: open-jev@8791.service: Consumed 13min 37.305s CPU time.
+Oct 29 07:08:42 ip-172-31-89-192 systemd[1]: Started open-jev@8791.service.
+Oct 29 07:08:42 ip-172-31-89-192 systemd[1]: Stopping open-jev@8792.service...
+Oct 29 07:08:43 ip-172-31-89-192 systemd[1]: open-jev@8792.service: Deactivated successfully.
+Oct 29 07:08:43 ip-172-31-89-192 systemd[1]: Stopped open-jev@8792.service.
+Oct 29 07:08:43 ip-172-31-89-192 systemd[1]: open-jev@8792.service: Consumed 6min 5.337s CPU time.
+Oct 29 07:08:43 ip-172-31-89-192 systemd[1]: Started open-jev@8792.service.
+Oct 29 07:08:47 ip-172-31-89-192 python[13677]: [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Oct 29 07:08:47 ip-172-31-89-192 python[13728]: [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Oct 29 07:08:49 ip-172-31-89-192 python[13677]: [transformers] The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Oct 29 07:08:49 ip-172-31-89-192 python[13728]: [transformers] The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Oct 29 07:08:50 ip-172-31-89-192 python[13677]: [615B blob data]
+Oct 29 07:08:50 ip-172-31-89-192 python[13677]: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Oct 29 07:08:50 ip-172-31-89-192 python[13728]: [532B blob data]
+Oct 29 07:08:50 ip-172-31-89-192 python[13677]: {"url": "http://127.0.0.1:8791", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}
+Oct 29 07:08:50 ip-172-31-89-192 python[13728]: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Oct 29 07:08:51 ip-172-31-89-192 python[13728]: {"url": "http://127.0.0.1:8792", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}
+Oct 29 08:12:48 ip-172-31-89-192 systemd[1]: Stopping open-jev@8791.service...
+Oct 29 08:12:48 ip-172-31-89-192 systemd[1]: open-jev@8791.service: Deactivated successfully.
+Oct 29 08:12:48 ip-172-31-89-192 systemd[1]: Stopped open-jev@8791.service.
+Oct 29 08:12:48 ip-172-31-89-192 systemd[1]: open-jev@8791.service: Consumed 12min 46.008s CPU time.
+Oct 29 08:12:48 ip-172-31-89-192 systemd[1]: Started open-jev@8791.service.
+Oct 29 08:12:49 ip-172-31-89-192 systemd[1]: Stopping open-jev@8792.service...
+Oct 29 08:12:49 ip-172-31-89-192 systemd[1]: open-jev@8792.service: Deactivated successfully.
+Oct 29 08:12:49 ip-172-31-89-192 systemd[1]: Stopped open-jev@8792.service.
+Oct 29 08:12:49 ip-172-31-89-192 systemd[1]: open-jev@8792.service: Consumed 8min 21.199s CPU time.
+Oct 29 08:12:49 ip-172-31-89-192 systemd[1]: Started open-jev@8792.service.
+Oct 29 08:12:53 ip-172-31-89-192 python[16008]: [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Oct 29 08:12:54 ip-172-31-89-192 python[16051]: [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Oct 29 08:12:55 ip-172-31-89-192 python[16008]: [transformers] The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Oct 29 08:12:55 ip-172-31-89-192 python[16051]: [transformers] The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Oct 29 08:12:56 ip-172-31-89-192 python[16008]: [528B blob data]
+Oct 29 08:12:56 ip-172-31-89-192 python[16008]: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Oct 29 08:12:56 ip-172-31-89-192 python[16051]: [538B blob data]
+Oct 29 08:12:56 ip-172-31-89-192 python[16008]: {"url": "http://127.0.0.1:8791", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}
+Oct 29 08:12:57 ip-172-31-89-192 python[16051]: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Oct 29 08:12:57 ip-172-31-89-192 python[16051]: {"url": "http://127.0.0.1:8792", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: ----------------------------------------
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: Exception occurred during processing of request from ('127.0.0.1', 39872)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: ----------------------------------------
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: Exception occurred during processing of request from ('127.0.0.1', 39864)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: ----------------------------------------
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: Exception occurred during processing of request from ('127.0.0.1', 39850)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: Traceback (most recent call last):
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: Traceback (most recent call last):
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 160, in do_POST
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     return self.send(200, batcher.submit(request).result())
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 142, in send
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.wfile.write(payload)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 845, in write
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self._sock.sendall(b)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: BrokenPipeError: [Errno 32] Broken pipe
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: During handling of the above exception, another exception occurred:
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: Traceback (most recent call last):
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 697, in process_request_thread
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.finish_request(request, client_address)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 362, in finish_request
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.RequestHandlerClass(request, client_address, self)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 766, in __init__
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.handle()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 440, in handle
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.handle_one_request()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 428, in handle_one_request
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     method()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 164, in do_POST
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     return self.send(500, {"error": "model inference failed", "error_type": type(e).__name__})
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 141, in send
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.end_headers()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 542, in end_headers
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.flush_headers()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 546, in flush_headers
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.wfile.write(b"".join(self._headers_buffer))
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 845, in write
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self._sock.sendall(b)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: BrokenPipeError: [Errno 32] Broken pipe
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: ----------------------------------------
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: Traceback (most recent call last):
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 160, in do_POST
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     return self.send(200, batcher.submit(request).result())
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 142, in send
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.wfile.write(payload)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 845, in write
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self._sock.sendall(b)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: BrokenPipeError: [Errno 32] Broken pipe
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: During handling of the above exception, another exception occurred:
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: Traceback (most recent call last):
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 697, in process_request_thread
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.finish_request(request, client_address)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 362, in finish_request
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.RequestHandlerClass(request, client_address, self)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 766, in __init__
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.handle()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 440, in handle
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.handle_one_request()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 428, in handle_one_request
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     method()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 164, in do_POST
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     return self.send(500, {"error": "model inference failed", "error_type": type(e).__name__})
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 141, in send
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.end_headers()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 542, in end_headers
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.flush_headers()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 546, in flush_headers
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.wfile.write(b"".join(self._headers_buffer))
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 845, in write
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self._sock.sendall(b)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: BrokenPipeError: [Errno 32] Broken pipe
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: ----------------------------------------
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 160, in do_POST
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     return self.send(200, batcher.submit(request).result())
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 142, in send
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.wfile.write(payload)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 845, in write
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self._sock.sendall(b)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: BrokenPipeError: [Errno 32] Broken pipe
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: During handling of the above exception, another exception occurred:
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: Traceback (most recent call last):
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 697, in process_request_thread
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.finish_request(request, client_address)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 362, in finish_request
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.RequestHandlerClass(request, client_address, self)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 766, in __init__
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.handle()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 440, in handle
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.handle_one_request()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 428, in handle_one_request
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     method()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 164, in do_POST
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     return self.send(500, {"error": "model inference failed", "error_type": type(e).__name__})
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 141, in send
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.end_headers()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 542, in end_headers
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.flush_headers()
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 546, in flush_headers
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self.wfile.write(b"".join(self._headers_buffer))
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 845, in write
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]:     self._sock.sendall(b)
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: BrokenPipeError: [Errno 32] Broken pipe
+Oct 29 09:06:09 ip-172-31-89-192 python[16008]: ----------------------------------------
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: ----------------------------------------
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: Exception occurred during processing of request from ('127.0.0.1', 43346)
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: ----------------------------------------
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: Exception occurred during processing of request from ('127.0.0.1', 43356)
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: Traceback (most recent call last):
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: Traceback (most recent call last):
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 160, in do_POST
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     return self.send(200, batcher.submit(request).result())
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 160, in do_POST
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     return self.send(200, batcher.submit(request).result())
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 142, in send
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.wfile.write(payload)
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 142, in send
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.wfile.write(payload)
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 845, in write
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self._sock.sendall(b)
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 845, in write
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self._sock.sendall(b)
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: BrokenPipeError: [Errno 32] Broken pipe
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: BrokenPipeError: [Errno 32] Broken pipe
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: During handling of the above exception, another exception occurred:
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: During handling of the above exception, another exception occurred:
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: Traceback (most recent call last):
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: Traceback (most recent call last):
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 697, in process_request_thread
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.finish_request(request, client_address)
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 697, in process_request_thread
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.finish_request(request, client_address)
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 362, in finish_request
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.RequestHandlerClass(request, client_address, self)
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 362, in finish_request
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.RequestHandlerClass(request, client_address, self)
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 766, in __init__
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.handle()
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 766, in __init__
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.handle()
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 440, in handle
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.handle_one_request()
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 440, in handle
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.handle_one_request()
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 428, in handle_one_request
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     method()
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 428, in handle_one_request
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     method()
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 164, in do_POST
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     return self.send(500, {"error": "model inference failed", "error_type": type(e).__name__})
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 164, in do_POST
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     return self.send(500, {"error": "model inference failed", "error_type": type(e).__name__})
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 141, in send
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.end_headers()
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/opt/brownout/src/jevserve/batch_server.py", line 141, in send
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.end_headers()
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 542, in end_headers
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.flush_headers()
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 546, in flush_headers
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.wfile.write(b"".join(self._headers_buffer))
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 845, in write
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self._sock.sendall(b)
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 542, in end_headers
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.flush_headers()
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: BrokenPipeError: [Errno 32] Broken pipe
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/http/server.py", line 546, in flush_headers
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self.wfile.write(b"".join(self._headers_buffer))
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: ----------------------------------------
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/socketserver.py", line 845, in write
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]:     self._sock.sendall(b)
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: BrokenPipeError: [Errno 32] Broken pipe
+Oct 29 09:06:13 ip-172-31-89-192 python[16008]: ----------------------------------------
+Oct 29 09:21:13 ip-172-31-89-192 systemd[1]: Stopping open-jev@8791.service...
+Oct 29 09:21:14 ip-172-31-89-192 systemd[1]: open-jev@8791.service: Deactivated successfully.
+Oct 29 09:21:14 ip-172-31-89-192 systemd[1]: Stopped open-jev@8791.service.
+Oct 29 09:21:14 ip-172-31-89-192 systemd[1]: open-jev@8791.service: Consumed 10min 49.178s CPU time.
+Oct 29 09:21:14 ip-172-31-89-192 systemd[1]: Started open-jev@8791.service.
+Oct 29 09:21:14 ip-172-31-89-192 systemd[1]: Stopping open-jev@8792.service...
+Oct 29 09:21:14 ip-172-31-89-192 systemd[1]: open-jev@8792.service: Deactivated successfully.
+Oct 29 09:21:14 ip-172-31-89-192 systemd[1]: Stopped open-jev@8792.service.
+Oct 29 09:21:14 ip-172-31-89-192 systemd[1]: open-jev@8792.service: Consumed 6min 42.655s CPU time.
+Oct 29 09:21:14 ip-172-31-89-192 systemd[1]: Started open-jev@8792.service.
+Oct 29 09:21:18 ip-172-31-89-192 python[17966]: [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Oct 29 09:21:19 ip-172-31-89-192 python[18005]: [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Oct 29 09:21:20 ip-172-31-89-192 python[17966]: [transformers] The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Oct 29 09:21:21 ip-172-31-89-192 python[18005]: [transformers] The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Oct 29 09:21:21 ip-172-31-89-192 python[17966]: [529B blob data]
+Oct 29 09:21:21 ip-172-31-89-192 python[17966]: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Oct 29 09:21:22 ip-172-31-89-192 python[18005]: [534B blob data]
+Oct 29 09:21:22 ip-172-31-89-192 python[17966]: {"url": "http://127.0.0.1:8791", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}
+Oct 29 09:21:22 ip-172-31-89-192 python[18005]: {"url": "http://127.0.0.1:8792", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}
+Oct 29 10:15:08 ip-172-31-89-192 systemd[1]: Stopping open-jev@8791.service...
+Oct 29 10:15:08 ip-172-31-89-192 systemd[1]: Stopping open-jev@8792.service...
+Oct 29 10:15:09 ip-172-31-89-192 systemd[1]: open-jev@8792.service: Deactivated successfully.
+Oct 29 10:15:09 ip-172-31-89-192 systemd[1]: Stopped open-jev@8792.service.
+Oct 29 10:15:09 ip-172-31-89-192 systemd[1]: open-jev@8792.service: Consumed 5min 21.740s CPU time.
+Oct 29 10:15:09 ip-172-31-89-192 systemd[1]: open-jev@8791.service: Deactivated successfully.
+Oct 29 10:15:09 ip-172-31-89-192 systemd[1]: Stopped open-jev@8791.service.
+Oct 29 10:15:09 ip-172-31-89-192 systemd[1]: open-jev@8791.service: Consumed 8min 58.260s CPU time.
+-- Boot 40daf7aca74844c689d2e27d7479798d --
+Oct 30 20:06:59 ip-172-31-89-192 systemd[1]: Started open-jev@8791.service.
+Oct 30 20:06:59 ip-172-31-89-192 systemd[1]: Started open-jev@8792.service.
+Oct 30 20:07:13 ip-172-31-89-192 python[464]: [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Oct 30 20:07:13 ip-172-31-89-192 python[463]: [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Oct 30 20:07:16 ip-172-31-89-192 python[463]: [transformers] The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Oct 30 20:07:16 ip-172-31-89-192 python[464]: [transformers] The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Oct 30 20:07:49 ip-172-31-89-192 python[464]: [8.3K blob data]
+Oct 30 20:07:49 ip-172-31-89-192 python[463]: [8.0K blob data]
+Oct 30 20:07:49 ip-172-31-89-192 python[463]: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Oct 30 20:07:49 ip-172-31-89-192 python[464]: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Oct 30 20:07:50 ip-172-31-89-192 python[464]: {"url": "http://127.0.0.1:8792", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}
+Oct 30 20:07:50 ip-172-31-89-192 python[463]: {"url": "http://127.0.0.1:8791", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}
+Oct 30 20:11:25 ip-172-31-89-192 systemd[1]: Stopping open-jev@8791.service...
+Oct 30 20:11:25 ip-172-31-89-192 systemd[1]: open-jev@8791.service: Deactivated successfully.
+Oct 30 20:11:25 ip-172-31-89-192 systemd[1]: Stopped open-jev@8791.service.
+Oct 30 20:11:25 ip-172-31-89-192 systemd[1]: open-jev@8791.service: Consumed 11.813s CPU time.
+Oct 30 20:11:25 ip-172-31-89-192 systemd[1]: Stopping open-jev@8792.service...
+Oct 30 20:11:26 ip-172-31-89-192 systemd[1]: open-jev@8792.service: Deactivated successfully.
+Oct 30 20:11:26 ip-172-31-89-192 systemd[1]: Stopped open-jev@8792.service.
+Oct 30 20:11:26 ip-172-31-89-192 systemd[1]: open-jev@8792.service: Consumed 11.864s CPU time.
+-- Boot 02af219c74954980b944b96b840d72f0 --
+Nov 02 16:22:14 ip-172-31-89-192 systemd[1]: Started open-jev@8791.service.
+Nov 02 16:22:14 ip-172-31-89-192 systemd[1]: Started open-jev@8792.service.
+Nov 02 16:22:25 ip-172-31-89-192 python[2733]: [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Nov 02 16:22:25 ip-172-31-89-192 python[2700]: [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Nov 02 16:22:28 ip-172-31-89-192 python[2733]: [transformers] The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Nov 02 16:22:28 ip-172-31-89-192 python[2700]: [transformers] The fast path is not available because one of the required library is not installed. Falling back to torch implementation. To install follow https://github.com/fla-org/flash-linear-attention#installation and https://github.com/Dao-AILab/causal-conv1d
+Nov 02 16:23:02 ip-172-31-89-192 python[2700]: [8.1K blob data]
+Nov 02 16:23:02 ip-172-31-89-192 python[2733]: [8.2K blob data]
+Nov 02 16:23:02 ip-172-31-89-192 python[2700]: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Nov 02 16:23:02 ip-172-31-89-192 python[2733]: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Nov 02 16:23:02 ip-172-31-89-192 python[2733]: {"url": "http://127.0.0.1:8792", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}
+Nov 02 16:23:02 ip-172-31-89-192 python[2700]: {"url": "http://127.0.0.1:8791", "model": "Qwen/Qwen3.5-2B", "window_ms": 5.0, "max_requests": 16}

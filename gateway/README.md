@@ -36,7 +36,7 @@ The think response carries these headers (sent before Jev answers):
 - `X-Lifeline-Budget`: the starting limit.
 
 The last stream event carries `lifeline: {tier, online_tier, jev_tier, jev_at, predictor,
-priority, priority_source, budget, limit, cut, cut_from, announced, policy}`: `tier` is the
+priority, priority_source, budget, limit, cut, cut_from, announced, notices, policy}`: `tier` is the
 bucket that set the budget (`pending` if Jev never answered), `online_tier` and `jev_tier`
 each predictor's bucket, and `jev_at` the thinking tokens decoded when Jev's answer landed
 (0 = still queued or prefilling at vLLM). The math agent stores it per phase in `calls.jsonl`.
@@ -52,6 +52,10 @@ each predictor's bucket, and `jev_at` the thinking tokens decoded when Jev's ans
 | `brownout` | Brownout with both: `base = min(requested, classifier budget)` and `w` by priority. |
 
 - Pressure is `p = min(1, waiting / running)` from vLLM `/metrics`, polled every 0.5 s.
+  `--tpot-slo-ms` adds decode time: vLLM can run every request at once with no queue while each
+  decodes slowly, so the gateway also takes `tpot = running / (generated tokens per second)` over
+  the last 5 s (`vllm:generation_tokens_total`) and uses `p = max(queue term, (tpot - slo) / slo)`,
+  capped at 1: 0 at the SLO, 1 at twice it.
 - Nothing is cut below `p = 0.05` (shadow mode).
 - `--predictor` sets what the `brownout` budget comes from: `jev` (default; beside the LLM),
   `jev-serial` (the gateway waits for Jev, up to `--serial-timeout`, before sending the request
@@ -59,7 +63,7 @@ each predictor's bucket, and `jev_at` the thinking tokens decoded when Jev's ans
   its bucket and priority are only recorded. Without a Jev URL, the word model is used.
 - `--notice` sets how a cut reaches the model:
   - `silent`: the request stops at the new limit with `finish_reason: length`, and the agent appends its early-stop line.
-  - `announced`: the gateway immediately continues the request with `<budget_cut left=N>` appended and `max_tokens = N`. The client sees one stream.
+  - `announced`: the gateway immediately continues the request with `<budget_cut left=N>` appended and `max_tokens = N`. The client sees one stream. Each later drop of at least `max(--renotice-min, --renotice-frac x N)` (default `max(64, 0.1 N)`, N from the last notice) sends a new notice with the new N; a smaller drop stops the request at the limit as in `silent`. `announced` is true after the first notice, `notices` counts them (per request in the log and the stream, in total in `/v1/stats`).
 
 ## Priority (cut protection)
 
@@ -102,7 +106,26 @@ LIFELINE_API_KEY=... brownout-gateway --upstream http://<vllm>:8000/v1 --host 0.
 Endpoints:
 - `/v1/completions` and `/v1/models`, OpenAI-compatible.
 - `GET /v1/stats`: gateway counters, controller, pressure histogram, priority, and classifier.
-- `POST /admin/policy` with `{policy, notice, predictor, reject_waiting, admit_rate, admit_burst, reset}`; `reset: true` also clears the classifier (word model, Jev examples, stats). It refills the bucket and forgets which workflows were admitted, so a sweep can reuse workflow ids.
+- `GET /v1/pressure?since=<unix time>`: the pressure samples taken since then (one per monitor poll, the last 50,000 kept), as `[t, p, waiting, running, tpot_ms]` (`tpot_ms` is null until the generation counter has moved): `samples` for the first replica, `replicas: [{url, samples}]` for each.
+- `POST /admin/policy` with `{policy, notice, predictor, reject_waiting, admit_rate, admit_burst, reset}`; `reset: true` also clears the classifier (word model, Jev examples, stats); `snapshot: true` saves the classifier and `reset: "warm"` restores that snapshot instead. It refills the bucket and forgets which workflows were admitted, so a sweep can reuse workflow ids.
+
+## Several vLLM replicas
+
+`--upstream` takes a comma list of vLLM base URLs (`--metrics-url` then takes one URL per
+upstream, default each host's `/metrics`). Each replica has its own pressure monitor.
+- A new call (a think request that is not a budget-drop continuation, a call without a
+  thinking budget such as PLAN, or a request without headers) goes to the replica with the
+  lowest `waiting + running`, counting the requests sent to it since its last poll. Ties go
+  round-robin.
+- The rest of that call stays on the same replica: the answer phase after a think, a
+  client budget-drop continuation (keyed by workflow and step), and every announced-cut
+  continuation the gateway sends itself.
+- A request is cut by its own replica's pressure only. `cutting` in the controller stats is
+  true when any replica is under pressure.
+- `GET /v1/stats` reports `replicas: [{url, routed, requests, think, load, pressure}]`, and
+  `pressure` sums waiting, running, samples and the histogram over replicas (`p` is the
+  highest). With one upstream it is that replica's monitor, as before. Each row of
+  `gateway.jsonl` and the stream's `lifeline` event carry `replica`.
 
 `gateway.jsonl` has one row per think request, prompt included, so
 `budget-classifier replay` can run on real traffic.
@@ -126,5 +149,8 @@ Endpoints:
 - admin and auth
 - upstream errors
 - the real math-agent client through the gateway, including a cut and a 429
+- several replicas: least-loaded routing with round-robin ties, think and answer on the same
+  replica, announced continuations on the request's replica, cuts by that replica's pressure
+  only, per-replica pressure samples and stats
 
 The AWS end-to-end run is in [`../infra/brownout`](../infra/brownout/README.md).

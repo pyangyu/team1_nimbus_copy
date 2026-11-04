@@ -26,6 +26,7 @@ class Active:
     tier: str = ""
     jev_at: int | None = None
     jev_tier: str | None = None
+    replica: int = 0
 
     def set_priority(self, level: str, source: str) -> None:
         self.priority, self.priority_source = level, source
@@ -34,10 +35,12 @@ class Active:
 class Controller:
     def __init__(self, monitor: PressureMonitor, *, policy: str = "brownout", notice: str = "silent",
                  predictor: str = "jev", min_left: int = 64, max_frac: float = 0.9, active_at: float = 0.05,
-                 interval: float = 0.25):
+                 renotice_min: int = 64, renotice_frac: float = 0.1, interval: float = 0.25):
         self.monitor = monitor
+        self.monitors = [monitor]
         self.set_policy(policy, notice, predictor)
         self.min_left, self.max_frac, self.active_at, self.interval = min_left, max_frac, active_at, interval
+        self.renotice_min, self.renotice_frac = renotice_min, renotice_frac
         self.active: dict[str, Active] = {}
         self.cuts = 0
 
@@ -56,7 +59,13 @@ class Controller:
 
     @property
     def cutting(self) -> bool:
-        return self.policy in CUTTING and self.monitor.p >= self.active_at
+        return any(self.cutting_at(k) for k in range(len(self.monitors)))
+
+    def cutting_at(self, replica: int) -> bool:
+        return self.policy in CUTTING and self.monitors[replica].p >= self.active_at
+
+    def p(self, a: Active) -> float:
+        return self.monitors[a.replica].p
 
     def base(self, a: Active) -> int:
         return a.requested if self.policy == "uniform" else min(a.requested, a.tier_budget)
@@ -65,12 +74,15 @@ class Controller:
         return WEIGHT[a.priority] if self.policy == "brownout" else 1.0
 
     def target(self, a: Active) -> int:
-        frac = 1 - min(self.max_frac, self.monitor.p * self.weight(a))
+        frac = 1 - min(self.max_frac, self.p(a) * self.weight(a))
         return max(int(self.base(a) * frac), a.used + self.min_left)
 
+    def renotice(self, left: int) -> int:
+        return max(self.renotice_min, int(self.renotice_frac * left))
+
     def start(self, a: Active) -> Active:
-        if self.cutting:
-            a.limit = min(a.requested, max(int(self.base(a) * (1 - min(self.max_frac, self.monitor.p * self.weight(a)))),
+        if self.cutting_at(a.replica):
+            a.limit = min(a.requested, max(int(self.base(a) * (1 - min(self.max_frac, self.p(a) * self.weight(a)))),
                                            self.min_left))
         else:
             a.limit = a.requested
@@ -84,6 +96,8 @@ class Controller:
         if not self.cutting:
             return
         for a in list(self.active.values()):
+            if not self.cutting_at(a.replica):
+                continue
             t = self.target(a)
             if t < a.limit:
                 if a.cut_from is None:

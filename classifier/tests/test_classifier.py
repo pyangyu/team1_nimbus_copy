@@ -107,3 +107,21 @@ def test_save_and_load_roundtrip(tmp_path):
     a = run(clf, [r])[0][0]
     b = run(other, [{**r, "id": "x"}])[0][0]
     assert a.bucket == b.bucket and other.current_model == "m1" and acc(other, "m1")["labels"] == 101
+
+
+def test_restore_returns_to_the_snapshot():
+    clf = BudgetClassifier(dim=1 << 12)
+    run(clf, workload(5))
+    clf.restore()
+    assert clf.stats()["versions"] == {} and not clf.online.W.any()
+    run(clf, workload(100))
+    clf.snapshot()
+    r = next(workload(1, seed=9))
+    warm = run(clf, [r])[0][0]
+    for k in range(2):
+        run(clf, workload(50, seed=4))
+        if k:
+            clf.reset()
+        clf.restore()
+        again = run(clf, [{**r, "id": f"x{k}"}])[0][0]
+        assert again.bucket == warm.bucket and again.probs == warm.probs and acc(clf, "m1")["labels"] == 101

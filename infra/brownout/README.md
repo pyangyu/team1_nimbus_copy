@@ -83,6 +83,159 @@ benefits from the runs before it. Accuracy and deadline numbers are reported in
   rates for each in `results.md`)
 - `jev-serial` waited for Jev on every think request, and Jev answered before the first token
 
+## Spike suite (the standard test, one BurstGPT spike)
+
+`BROWNOUT_SUITE=spike` is the realistic suite below cut down to the part that tests Brownout: each policy gets
+one spike instead of a 30-minute replay. The spike is the sharpest in the default BurstGPT window: 16 minutes of
+trace from hour 522.0, two minutes of normal traffic at about 0.9 C, then two minutes at about 3.2 C, replayed in
+240 s at the full test's scale (`BROWNOUT_LOAD=2.04` thins the spike the way 1.3 x C thins the two-hour window).
+With C = 0.2 that is 98 workflows per policy, the same problems at the same times in every run.
+
+C is given, not measured: `BROWNOUT_CAPACITY` is required, and `e2e.sh` stops before starting any box without it.
+For Qwen3-4B on the two A10G replicas it is 0.2 workflows/s: with a queue they generate about 1,750 tokens/s, and a
+workflow of the default mix produces about 7,800. The closed-loop measurement only counts workflows that finish
+inside its window, so it undercounts when they take longer than the warm-up: at 192 in flight none finished before
+575 s, and it reported 0.10.
+
+Before the policies, a warm-up run (policy `none`, `BROWNOUT_WARMUP_N` workflows at one per second) teaches the
+word-model predictor thinking lengths, and the gateway snapshots it (`POST /admin/policy {"snapshot": true}`). Each
+policy starts from that snapshot (`"reset": "warm"`). A cold predictor puts every request in the median bucket of a
+uniform prior, 512-1K tokens, so a spike shorter than the first completions would measure over-cutting, not
+Brownout. The warm-up and the policies use disjoint halves of MATH-500 (`loadgen --split b` and `--split a`, by a
+hash of the problem id), so the predictor has not seen a measured problem.
+
+| Variable | Default in this suite |
+|---|---|
+| `BROWNOUT_CAPACITY` | required (workflows/s) |
+| `BROWNOUT_TRACE` | `burstgpt` |
+| `BROWNOUT_TRACE_START_H`, `BROWNOUT_TRACE_WINDOW_H` | `522.0`, `0.26667` |
+| `BROWNOUT_TRACE_S` | `240` |
+| `BROWNOUT_LOAD` | `2.04` |
+| `BROWNOUT_TAIL_S` | `900`: long enough for `none` to finish (at 300 s, half of a barely-cut run was cancelled) |
+| `BROWNOUT_WARMUP_N` | `64` |
+
+The other variables are the realistic suite's.
+
+```
+AWS_PROFILE=rlwalkeradmin BROWNOUT_SUITE=spike BROWNOUT_CAPACITY=0.2 BROWNOUT_MODEL=Qwen/Qwen3-4B BROWNOUT_STOP=1 \
+  infra/brownout/e2e.sh <commit>
+```
+
+To compare predictors on the same LLM hardware, run `BROWNOUT_JEV=1 BROWNOUT_LLM_ON_JEV=0` with half the
+capacity: every policy gets one vLLM replica on the batch box, and Jev has the Jev box's GPU (`BROWNOUT_MODEL` or
+`BROWNOUT_LORA` sets that one replica up, as with two).
+
+It takes about 10 minutes of setup, 6 for the warm-up, and 5-10 per policy (`none` is the slowest). Results are
+the realistic suite's, plus `warmup/` and the warm-up's label counts in `results.json` and `results.md`.
+`python3 infra/brownout/report.py <results folder> --open` charts a run into `report.html`: correct and on time per
+policy, vLLM's running and waiting requests over the run, and latency and thinking tokens by arrival time.
+
+## Realistic suite (MATH-500, rate profile)
+
+`BROWNOUT_SUITE=realistic` replaces the fixed-rate sweeps above with a suite where the one
+vLLM GPU stands for one replica of a fleet: below capacity most of the time, short bursts
+above it, recovery after. It cuts thinking with the word-model predictor (`online`) only, and
+Jev is not used: `e2e.sh` sets `BROWNOUT_JEV=0`, which skips `setup_jev.sh`, stops the Open-Jev
+servers and starts the gateway without `--jev-url`, so no request is sent to Jev and priority
+comes from the header heuristic.
+
+The Jev box's GPU then serves a second vLLM replica (`BROWNOUT_LLM_ON_JEV=1`, the default in
+this suite): `remote/setup_llm.sh` stops the Open-Jev servers and runs the same container as
+`lifeline-vllm-batch` (`VLLM_IMAGE`, `MODEL`, `MAX_MODEL_LEN` from `../vllm-ec2/config.env`,
+`--gpu-memory-utilization 0.92 --enable-prefix-caching`, as `../vllm-ec2/up.sh` writes it) as
+`vllm.service`, and waits until it answers. `remote/show_vllm.sh` prints the batch box's vLLM
+command line (key masked) and GPU memory into the log, to compare. The gateway, still on the Jev
+box's CPU, gets `--upstream http://127.0.0.1:8000/v1,http://<batch private IP>:8000/v1`, so it
+reaches the local replica on localhost and the other one inside `brownout-internal-sg` (port
+8000). `deploy.sh` waits for every upstream to answer before it starts the gateway. Routing and
+per-replica pressure are described in `../../gateway/README.md`. The next default-suite run's
+`setup_jev.sh` disables that `vllm.service` and removes the image and weights again, so a
+realistic run after a default run downloads them again (about 25 GB).
+
+It runs only `agent/tests/test_brownout_live.py` (not `test_live.py`):
+
+1. Capacity: policy `none`, closed loop. `BROWNOUT_CAPACITY_CONCURRENCY` workflows stay in flight,
+   so vLLM always has a queue. C is for all replicas together. Workflows finishing between `BROWNOUT_CAPACITY_WARMUP_S` and
+   warmup + `BROWNOUT_CAPACITY_S` give C in workflows/s (and thinking tokens/s). Workflows still
+   running at the end are cancelled. `BROWNOUT_CAPACITY` skips this and uses the given C.
+2. Each policy in `BROWNOUT_POLICIES` runs the same rate profile: segments of
+   `duration_s:rate`, the rate a multiple of C, Poisson within each segment. Arrival times,
+   problems and deadline slacks come from `BROWNOUT_SEED`, so every policy gets the same
+   sequence. After the profile ends, workflows still running after `BROWNOUT_TAIL_S` are
+   cancelled and counted as wrong and late. The classifier is reset before each run, and each
+   run waits until vLLM has no running or waiting requests.
+
+`BROWNOUT_TRACE=burstgpt` replaces the rate profile with real arrivals: a two-hour window of the
+BurstGPT trace (Azure ChatGPT and GPT-4 traffic, KDD 25; human conversation log by default) is compressed into
+`BROWNOUT_TRACE_S` and thinned at random to a mean rate of `BROWNOUT_LOAD` x C, so the trace's bursts keep their
+shape. The agent box downloads `BurstGPT_1.csv` (50 MB) from the BurstGPT GitHub repo once. Each kept request
+becomes a MATH-500 problem by rank: the trace's longest responses get the hardest levels, in MATH-500's level mix,
+so a burst brings the problems its requests would have. Segments and the baseline/burst phases come from the whole
+window in 120 s bins (a bin above C is a burst), and the derived profile is written to `summary.json` and
+`results.md`. See `agent/math_agent/trace.py` for why the default window was chosen.
+
+A policy can end in `@name` to send that run to model `name`, e.g. `brownout:announced:online@r2` for a LoRA
+served with `BROWNOUT_LORA=r2=...`. Both replicas are set up by `remote/setup_llm.sh` at the start of each run,
+so they always serve the same model.
+
+The client thinking budget is set per problem (`loadgen --level-budgets`): MATH levels 1-2 ask
+for 2048 (up to 4096 on a retry), level 3 for 4096 (up to 6144), levels 4-5 for 6144; GSM8K
+1024 (up to 2048). The solo latency used for deadlines is 150 s, 300 s and 450 s for those
+MATH bands and 90 s for GSM8K.
+
+| Variable | Default |
+|---|---|
+| `BROWNOUT_SUITE` | `default` (the sweeps above); `realistic` runs this suite, `spike` the spike suite above |
+| `BROWNOUT_WORKLOAD` | `math500:1-5`. Format `dataset[:levels][=weight],...`, e.g. `math500:4-5` or `gsm8k=0.5,math500:4-5=0.5` |
+| `BROWNOUT_PROFILE` | `180:0.7,120:1.2,180:0.7,180:1.5,240:0.7,120:2.0,180:0.7,240:1.2,300:0.7` (29 min; rate > 1 is a burst) |
+| `BROWNOUT_TRACE` | unset (use the profile); `burstgpt` replays BurstGPT arrivals |
+| `BROWNOUT_TRACE_LOG` | `conversation` (`api` or `all` add the batch API traffic, whose spikes reach 4000x its median hour) |
+| `BROWNOUT_TRACE_START_H`, `BROWNOUT_TRACE_WINDOW_H` | `520.5`, `2` (hours from the start of the trace) |
+| `BROWNOUT_TRACE_S` | `1800` (the window is replayed in this many seconds) |
+| `BROWNOUT_LOAD` | `0.9` (mean arrival rate in units of C; the default window peaks at 1.9 C) |
+| `BROWNOUT_MODEL` | unset (`MODEL` in `../vllm-ec2/config.env`); both replicas are set up with it, and runs without `@name` ask for it |
+| `BROWNOUT_LORA` | unset; `name=ci/key.tgz` serves a LoRA tarball (one top folder with `adapter_config.json`) from the CI bucket as model `name` on both replicas |
+| `BROWNOUT_NOTICE` | unset (`<budget_cut left=N>`); `countdown` is the sentence the `training/` models learned, or any text with `{N}` |
+| `BROWNOUT_TPOT_SLO_MS` | unset (pressure is the queue only); a value starts the gateway with `--tpot-slo-ms`, so a crowded batch that decodes slower than this many ms per token per request also counts as pressure. 35 fits the default workload: a level 1-2 workflow of about 6,000 tokens still meets a 1.5x deadline (225 s) at 28 tokens/s |
+| `BROWNOUT_POLICIES` | `none,uniform,brownout:silent:online,brownout:announced:online` |
+| `BROWNOUT_JEV` | `0` in this suite, `1` otherwise (`1` deploys Open-Jev and passes `--jev-url` to the gateway) |
+| `BROWNOUT_LLM_ON_JEV` | `1` in this suite (second vLLM replica on the Jev box; needs `BROWNOUT_JEV=0`), `0` otherwise |
+| `BROWNOUT_CAPACITY` | unset (measure C) |
+| `BROWNOUT_CAPACITY_CONCURRENCY` | `32` workflows in flight per replica |
+| `BROWNOUT_CAPACITY_WARMUP_S`, `BROWNOUT_CAPACITY_S` | `180`, `600` |
+| `BROWNOUT_TAIL_S` | `1200` |
+| `BROWNOUT_SEED` | `0` |
+| `BROWNOUT_AGENT_TIMEOUT` | computed by `e2e.sh`: capacity + policies x (profile + tail + 1800 s) + 1800 s, 23340 s with the defaults |
+
+`e2e.sh` forwards these variables to the agent box. Run it from a shell with admin credentials:
+
+```
+AWS_PROFILE=rlwalkeradmin BROWNOUT_SUITE=realistic BROWNOUT_STOP=1 infra/brownout/e2e.sh <commit>
+```
+
+With the defaults it takes about 3.5 hours: 15-30 min setup (more when the second replica has
+to download the vLLM image and Qwen3-8B), 15 min capacity, and 30-40 min per policy. That is longer than the CI job (230 min) and the CI role session (4 h), so run it
+locally.
+
+Results (`brownout-results/`):
+- `results.md`: C, then one row per policy: accuracy, deadline met, correct and on time
+  (goodput) overall and for arrivals in baseline and burst segments, latency p50/p95,
+  thinking tokens, cuts and notices, pressure (mean, fraction at the cap, fraction at 0,
+  fraction of samples with a vLLM queue, mean in baseline and burst). Then goodput by MATH level and a pressure
+  histogram per policy. Instead of the Jev columns, it reports the word model's accuracy over
+  its last 200 uncensored labels of the run (`word_model_exact`, `_within_one`, `_under`) and
+  `jev_asked` (0 when Jev is off), think requests per replica (`replica_think`) and mean
+  pressure per replica (`p_mean_replicas`).
+- `results.json`: the same plus breakdowns by segment, by level and by level x phase.
+- `capacity/` and `realistic-<policy>/`: the loadgen output and `pressure.jsonl`, the
+  gateway's samples of `[t, p, waiting, running, replica]` during the run
+  (`GET /v1/pressure?since=<unix time>`). The pressure columns pool the samples of all replicas;
+  `pressure.replicas` in `results.json` has each replica's.
+
+The test asserts only that there were no upstream or client errors, that the classifier saw
+every think request (less any cancelled at the tail), that `none` never cuts, and, with Jev off,
+that Jev was never asked.
+
 CI runs the `brownout-e2e` job after the `aws` job, only in the full suite
 (`gh workflow run CI -f suite=full`); pushes to main run the smoke suite only. It uses the same OIDC role and stops only the boxes it started.
 A run costs roughly $5: two A10Gs for about two and a half hours. The CI role's session lasts 4 hours (`setup_iam.sh`).

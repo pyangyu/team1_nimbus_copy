@@ -4,12 +4,13 @@ import json
 import httpx
 import pytest
 
-from brownout_gateway.pressure import parse_metrics, pressure
+from brownout_gateway.pressure import parse_generated, parse_metrics, pressure, slowdown
 from brownout_gateway.jevq import JevScheduler
 from brownout_gateway.priority import heuristic
 from brownout_gateway import create_app
 from brownout_gateway.controller import Active, Controller
 from brownout_gateway.pressure import PressureMonitor
+from brownout_gateway.routing import Replica, Router
 from budget_classifier import BudgetClassifier, Buckets, JevPrior
 from conftest import KEY, body, make, parse, think_headers
 
@@ -149,6 +150,55 @@ def test_announced_cut_continues_with_notice(run):
     cont = fake.requests[-1]["body"]
     assert len(fake.requests) == 2 and "<budget_cut left=" in cont["prompt"] and cont["max_tokens"] < 200
     assert out["usage"]["completion_tokens"] <= 200 and gw.counts["announced"] == 1
+
+
+def drop_limits(gw, fake, at: dict[int, int]):
+    seen = [0]
+    def on_token(i):
+        if seen[0] in at:
+            for a in gw.controller.active.values():
+                a.limit = at[seen[0]]
+        seen[0] += 1
+    fake.on_token = on_token
+
+
+def run_announced(run, tmp_path, at):
+    gw, fake, c = make(policy="none", notice="announced", log_path=tmp_path / "gw.jsonl")
+    drop_limits(gw, fake, at)
+    out = parse(run(c.post("/v1/completions", json=body("hard"), headers=think_headers())))
+    row = json.loads((tmp_path / "gw.jsonl").read_text().splitlines()[-1])
+    return gw, fake, out, row
+
+
+def test_announced_renotices_on_each_large_drop(run, tmp_path):
+    gw, fake, out, row = run_announced(run, tmp_path, {100: 600, 200: 400})
+    assert [r["body"]["max_tokens"] for r in fake.requests] == [1000, 499, 199]
+    assert out["text"].count("<budget_cut left=") == 2
+    assert "<budget_cut left=499>" in out["text"] and "<budget_cut left=199>" in out["text"]
+    assert fake.requests[-1]["body"]["prompt"].endswith("<budget_cut left=199>\n")
+    assert out["finish"] == "length" and out["usage"]["completion_tokens"] == 400
+    assert out["info"]["announced"] and out["info"]["notices"] == 2 and not row["natural"]
+    assert row["announced"] and row["notices"] == 2 and not row["cut"]
+    assert gw.counts["announced"] == 1 and gw.counts["notices"] == 2 and gw.counts["cut"] == 0
+
+
+def test_announced_small_drop_hard_stops_without_notice(run, tmp_path):
+    gw, fake, out, row = run_announced(run, tmp_path, {100: 600, 200: 560})
+    assert len(fake.requests) == 2 and out["text"].count("<budget_cut left=") == 1
+    assert out["finish"] == "length" and out["usage"]["completion_tokens"] == 560
+    assert row["notices"] == 1 and row["cut"] and gw.counts["notices"] == 1 and gw.counts["cut"] == 1
+
+
+def test_announced_drop_past_used_hard_stops(run, tmp_path):
+    gw, fake, out, row = run_announced(run, tmp_path, {100: 600, 300: 250})
+    assert len(fake.requests) == 2 and out["text"].count("<budget_cut left=") == 1
+    assert out["finish"] == "length" and out["usage"]["completion_tokens"] == 301
+    assert row["notices"] == 1 and row["cut"] and gw.counts["cut"] == 1
+
+
+def test_renotice_threshold():
+    ctl = Controller(PressureMonitor(), renotice_min=64, renotice_frac=0.1)
+    assert ctl.renotice(100) == 64 and ctl.renotice(2000) == 200
 
 
 def test_no_cut_without_pressure(run):
@@ -293,6 +343,19 @@ def test_reset_forgets_learned_state(run):
     assert gw.clf.stats()["versions"] == {} and not gw.clf.memory.items and not gw.clf.online.W.any()
 
 
+def test_warm_reset_restores_the_snapshot(run):
+    gw, fake, c = make()
+    run(c.post("/v1/completions", json=body("easy"), headers=think_headers()))
+    run(c.post("/admin/policy", json={"snapshot": True}))
+    run(c.post("/v1/completions", json=body("hard", 300), headers=think_headers(wf="w2", budget=300)))
+    assert gw.clf.stats()["versions"]["fake"]["censored"] == 1
+    run(c.post("/admin/policy", json={"policy": "brownout", "reset": "warm"}))
+    v = gw.clf.stats()["versions"]["fake"]
+    assert v["labels"] == 1 and v["censored"] == 0 and gw.clf.online.W.any() and gw.clf.memory.items
+    run(c.post("/admin/policy", json={"policy": "brownout", "reset": True}))
+    assert gw.clf.stats()["versions"] == {} and not gw.clf.online.W.any()
+
+
 def test_jev_queue_serves_waiting_requests_first(run):
     seen = []
     jev = JevPrior(Buckets(), "http://jev/v1/systemone", transport=fake_jev_slow(seen, 0.02))
@@ -335,6 +398,150 @@ def test_admin_auth_and_stats(run):
     assert gw.admit_rate == 1.5 and gw.admit_burst == 4 and gw.tokens == 4
     assert models.json()["data"][0]["id"] == "fake"
     assert {"gateway", "controller", "pressure", "jev", "classifier"} <= st.json().keys()
+
+
+def test_pressure_series_since(run):
+    gw, fake, c = make()
+    now = iter([100.0, 101.0, 102.0])
+    gw.monitor.clock = lambda: next(now)
+    gw.monitor.set(0, 4)
+    gw.monitor.set(2, 4)
+    gw.monitor.set(9, 3)
+    async def go():
+        return await c.get("/v1/pressure", params={"since": 101}), await c.get("/v1/pressure", params={"since": "x"})
+    r, bad = run(go())
+    assert r.json()["samples"] == [[101.0, 0.5, 2.0, 4.0, None], [102.0, 1.0, 9.0, 3.0, None]]
+    assert r.json()["columns"] == ["t", "p", "waiting", "running", "tpot_ms"] and bad.status_code == 400
+    assert gw.monitor.stats()["p_hist_deciles"][0] == 1 and gw.monitor.stats()["p_hist_deciles"][9] == 1
+
+
+def test_decode_time_is_pressure_past_its_slo():
+    text = 'vllm:generation_tokens_total{engine="0"} 100.0\nvllm:generation_tokens_created 1.7e9\n'
+    assert parse_generated(text) == 100.0 and parse_generated("vllm:num_requests_running 3\n") is None
+    assert slowdown(0.05, 0.04) == pytest.approx(0.25) and slowdown(0.03, 0.04) == 0 and slowdown(0.2, 0.04) == 1
+    assert slowdown(0.2, None) == 0 and slowdown(None, 0.04) == 0
+    m = PressureMonitor(tpot_slo=0.04, rate_window=2.0)
+    assert m.decode_time(0.0, 1000, 40) is None
+    tpot = m.decode_time(1.0, 1800, 40)
+    assert tpot == pytest.approx(0.05)
+    m.set(0, 40, tpot)
+    assert m.p == pytest.approx(0.25) and m.series[-1][4] == 50.0 and m.stats()["tpot_ms"] == 50.0
+    m.set(30, 40, tpot)
+    assert m.p == 0.75
+    m.decode_time(2.0, 2600, 20)
+    assert m.decode_time(3.0, 3400, 20) == pytest.approx((40 + 20 + 20) / 3 / 800) and len(m.generated) == 3
+    assert m.decode_time(4.0, 100, 40) is None
+    plain = PressureMonitor()
+    plain.set(0, 40, 0.2)
+    assert plain.p == 0 and plain.stats()["tpot_slo_ms"] is None
+
+
+def test_poll_reads_the_generation_counter(run):
+    texts = iter([f"vllm:num_requests_running 40\nvllm:num_requests_waiting 0\nvllm:generation_tokens_total {g}\n"
+                  for g in (1000, 1800)])
+    http = httpx.AsyncClient(transport=httpx.MockTransport(lambda req: httpx.Response(200, text=next(texts))))
+    now = iter([0.0, 0.0, 1.0, 1.0])
+    m = PressureMonitor("http://vllm/metrics", http=http, clock=lambda: next(now), tpot_slo=0.04)
+    run(m.poll_once())
+    run(m.poll_once())
+    assert m.errors == 0 and m.tpot == pytest.approx(0.05) and m.p == pytest.approx(0.25)
+    assert [x[4] for x in m.since(0)] == [None, 50.0]
+
+
+TWO = "http://vllm-a/v1,http://vllm-b/v1"
+
+
+def test_router_picks_least_loaded_and_breaks_ties_round_robin():
+    a, b, c = (Replica(u) for u in ("http://a/v1", "http://b/v1", "http://c/v1"))
+    r = Router([a, b, c])
+    assert [r.pick() for _ in range(3)] == [0, 1, 2]
+    for rep, (w, n) in zip((a, b, c), ((0, 5), (2, 1), (0, 9))):
+        rep.monitor.set(w, n)
+    assert r.pick() == 1 and r.pick() == 1
+    assert r.pick() == 0 and r.pick() == 1
+    b.monitor.set(9, 9)
+    assert r.pick() == 0 and a.routed == 3 and b.routed == 4 and c.routed == 1
+
+
+def test_router_keeps_continuations_on_their_replica():
+    r = Router([Replica("http://a/v1"), Replica("http://b/v1")])
+    assert r.route("w1:solve.0", True) == 0 and r.route("w2:solve.0", True) == 1
+    assert r.route("w1:solve.0", False) == 0 and r.route("w2:solve.0", False) == 1
+    assert r.route("w1:solve.1", True) == 0 and r.route(None, False) == 1
+    small = Router([Replica("http://a/v1")], max_sticky=2)
+    for k in ("x", "y", "z"):
+        small.route(k, True)
+    assert list(small.sticky) == ["y", "z"]
+
+
+def test_two_replicas_spread_new_calls_and_keep_think_answer_together(run):
+    gw, fake, c = make(upstream=TWO)
+    async def go():
+        for wf in ("w1", "w2"):
+            await c.post("/v1/completions", json=body("easy"), headers=think_headers(wf=wf))
+            await c.post("/v1/completions", json={**body("easy"), "max_tokens": 20},
+                         headers=think_headers(wf=wf) | {"X-Lifeline-Phase": "answer"})
+        return await c.get("/v1/stats")
+    st = run(go()).json()
+    hosts = [(r["headers"]["x-lifeline-workflow"], r["headers"]["x-lifeline-phase"], r["host"]) for r in fake.requests]
+    assert hosts == [("w1", "think", "vllm-a"), ("w1", "answer", "vllm-a"),
+                     ("w2", "think", "vllm-b"), ("w2", "answer", "vllm-b")]
+    assert [(x["url"], x["requests"], x["think"]) for x in st["replicas"]] == [
+        ("http://vllm-a/v1", 2, 1), ("http://vllm-b/v1", 2, 1)]
+
+
+def test_announced_continuation_stays_on_the_replica_and_cuts_by_its_pressure(run, tmp_path):
+    gw, fake, c = make(upstream=TWO, policy="uniform", notice="announced", log_path=tmp_path / "gw.jsonl")
+    busy, idle = gw.router.replicas[1].monitor, gw.router.replicas[0].monitor
+    idle.set(0, 1)
+    busy.set(0, 3)
+    def on_token(i):
+        if i == 50:
+            busy.set(4, 4)
+    fake.on_token = on_token
+    async def go():
+        t = asyncio.create_task(gw.controller.run())
+        r = await c.post("/v1/completions", json=body("hard"), headers=think_headers(wf="w1"))
+        t.cancel()
+        return r
+    idle.set(0, 9)
+    out = parse(run(go()))
+    assert out["info"]["announced"] and out["info"]["replica"] == 1
+    assert len(fake.requests) == 2 and {r["host"] for r in fake.requests} == {"vllm-b"}
+    row = json.loads((tmp_path / "gw.jsonl").read_text().splitlines()[-1])
+    assert row["replica"] == 1 and row["p_end"] == 1.0
+
+
+def test_pressure_on_another_replica_does_not_cut(run):
+    gw, fake, c = make(upstream=TWO, policy="uniform")
+    gw.router.replicas[0].monitor.set(0, 1)
+    gw.router.replicas[1].monitor.set(0, 5)
+    def on_token(i):
+        if i == 50:
+            gw.router.replicas[1].monitor.set(8, 4)
+    fake.on_token = on_token
+    async def go():
+        t = asyncio.create_task(gw.controller.run())
+        r = await c.post("/v1/completions", json=body("hard"), headers=think_headers())
+        t.cancel()
+        return r
+    out = parse(run(go()))
+    assert out["info"]["replica"] == 0 and not out["info"]["cut"] and out["usage"]["completion_tokens"] == 1000
+    assert gw.controller.cutting and not gw.controller.cutting_at(0)
+
+
+def test_pressure_endpoint_and_stats_per_replica(run):
+    gw, fake, c = make(upstream=TWO)
+    gw.router.replicas[0].monitor.set(1, 4)
+    gw.router.replicas[1].monitor.set(8, 4)
+    async def go():
+        return await c.get("/v1/pressure"), await c.get("/v1/stats")
+    pr, st = run(go())
+    reps = pr.json()["replicas"]
+    assert [x["url"] for x in reps] == ["http://vllm-a/v1", "http://vllm-b/v1"]
+    assert [x["samples"][0][1] for x in reps] == [0.25, 1.0] and pr.json()["samples"] == reps[0]["samples"]
+    p = st.json()["pressure"]
+    assert p["p"] == 1.0 and p["waiting"] == 9 and p["samples"] == 2 and sum(p["p_hist_deciles"]) == 2
 
 
 def test_upstream_error_is_returned(run):
