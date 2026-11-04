@@ -1,0 +1,260 @@
+{
+  "n": 49,
+  "accuracy": 0.8367,
+  "errors": 0,
+  "rejected": 0,
+  "cancelled": 0,
+  "latency_p50_s": 161.0009,
+  "latency_p90_s": 251.1637,
+  "latency_p95_s": 263.2682,
+  "latency_p99_s": 297.6217,
+  "rounds_mean": 1.5918,
+  "llm_calls_mean": 3.5306,
+  "prompt_tokens_mean": 458.6327,
+  "thinking_tokens_mean": 3139.7551,
+  "answer_tokens_mean": 1015.9592,
+  "deadline_met": 0.9796,
+  "correct_and_on_time": 0.8367,
+  "mode": "trace",
+  "t0": 1793753726.5911832,
+  "wall_s": 423.6,
+  "capacity": 0.1,
+  "profile": "120:0.887,120:3.193",
+  "profile_s": 240.0,
+  "arrivals": 49,
+  "tail_s": 900.0,
+  "by_phase": {
+    "baseline": {
+      "n": 7,
+      "accuracy": 1,
+      "deadline_met": 1,
+      "correct_and_on_time": 1,
+      "latency_p50_s": 116.804,
+      "latency_p95_s": 297.6217,
+      "thinking_tokens_mean": 3648.7143,
+      "cancelled": 0
+    },
+    "burst": {
+      "n": 42,
+      "accuracy": 0.8095,
+      "deadline_met": 0.9762,
+      "correct_and_on_time": 0.8095,
+      "latency_p50_s": 178.0864,
+      "latency_p95_s": 255.6842,
+      "thinking_tokens_mean": 3054.9286,
+      "cancelled": 0
+    }
+  },
+  "by_segment": {
+    "0": {
+      "n": 7,
+      "accuracy": 1,
+      "deadline_met": 1,
+      "correct_and_on_time": 1,
+      "latency_p50_s": 116.804,
+      "latency_p95_s": 297.6217,
+      "thinking_tokens_mean": 3648.7143,
+      "cancelled": 0
+    },
+    "1": {
+      "n": 42,
+      "accuracy": 0.8095,
+      "deadline_met": 0.9762,
+      "correct_and_on_time": 0.8095,
+      "latency_p50_s": 178.0864,
+      "latency_p95_s": 255.6842,
+      "thinking_tokens_mean": 3054.9286,
+      "cancelled": 0
+    }
+  },
+  "by_band": {
+    "L1": {
+      "n": 3,
+      "accuracy": 1,
+      "deadline_met": 1,
+      "correct_and_on_time": 1,
+      "latency_p50_s": 57.7864,
+      "latency_p95_s": 67.1857,
+      "thinking_tokens_mean": 1038.3333,
+      "cancelled": 0
+    },
+    "L2": {
+      "n": 10,
+      "accuracy": 0.8,
+      "deadline_met": 0.9,
+      "correct_and_on_time": 0.8,
+      "latency_p50_s": 105.8718,
+      "latency_p95_s": 234.0072,
+      "thinking_tokens_mean": 2380.4,
+      "cancelled": 0
+    },
+    "L3": {
+      "n": 11,
+      "accuracy": 0.9091,
+      "deadline_met": 1,
+      "correct_and_on_time": 0.9091,
+      "latency_p50_s": 108.7919,
+      "latency_p95_s": 232.4281,
+      "thinking_tokens_mean": 2594.2727,
+      "cancelled": 0
+    },
+    "L4": {
+      "n": 13,
+      "accuracy": 0.9231,
+      "deadline_met": 1,
+      "correct_and_on_time": 0.9231,
+      "latency_p50_s": 200.428,
+      "latency_p95_s": 255.6842,
+      "thinking_tokens_mean": 3615.6154,
+      "cancelled": 0
+    },
+    "L5": {
+      "n": 12,
+      "accuracy": 0.6667,
+      "deadline_met": 1,
+      "correct_and_on_time": 0.6667,
+      "latency_p50_s": 242.5547,
+      "latency_p95_s": 290.2955,
+      "thinking_tokens_mean": 4282.4167,
+      "cancelled": 0
+    }
+  },
+  "by_band_phase": {
+    "L1": {
+      "burst": {
+        "n": 3,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 57.7864,
+        "latency_p95_s": 67.1857,
+        "thinking_tokens_mean": 1038.3333,
+        "cancelled": 0
+      }
+    },
+    "L2": {
+      "baseline": {
+        "n": 1,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 116.804,
+        "latency_p95_s": 116.804,
+        "thinking_tokens_mean": 2689,
+        "cancelled": 0
+      },
+      "burst": {
+        "n": 9,
+        "accuracy": 0.7778,
+        "deadline_met": 0.8889,
+        "correct_and_on_time": 0.7778,
+        "latency_p50_s": 105.8718,
+        "latency_p95_s": 234.0072,
+        "thinking_tokens_mean": 2346.1111,
+        "cancelled": 0
+      }
+    },
+    "L3": {
+      "baseline": {
+        "n": 1,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 50.3513,
+        "latency_p95_s": 50.3513,
+        "thinking_tokens_mean": 2069,
+        "cancelled": 0
+      },
+      "burst": {
+        "n": 10,
+        "accuracy": 0.9,
+        "deadline_met": 1,
+        "correct_and_on_time": 0.9,
+        "latency_p50_s": 108.7919,
+        "latency_p95_s": 232.4281,
+        "thinking_tokens_mean": 2646.8,
+        "cancelled": 0
+      }
+    },
+    "L4": {
+      "baseline": {
+        "n": 3,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 58.0635,
+        "latency_p95_s": 142.0335,
+        "thinking_tokens_mean": 2493.6667,
+        "cancelled": 0
+      },
+      "burst": {
+        "n": 10,
+        "accuracy": 0.9,
+        "deadline_met": 1,
+        "correct_and_on_time": 0.9,
+        "latency_p50_s": 204.7579,
+        "latency_p95_s": 259.0001,
+        "thinking_tokens_mean": 3952.2,
+        "cancelled": 0
+      }
+    },
+    "L5": {
+      "baseline": {
+        "n": 2,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 290.2955,
+        "latency_p95_s": 297.6217,
+        "thinking_tokens_mean": 6651,
+        "cancelled": 0
+      },
+      "burst": {
+        "n": 10,
+        "accuracy": 0.6,
+        "deadline_met": 1,
+        "correct_and_on_time": 0.6,
+        "latency_p50_s": 229.5136,
+        "latency_p95_s": 263.2682,
+        "thinking_tokens_mean": 3808.7,
+        "cancelled": 0
+      }
+    }
+  },
+  "trace": {
+    "trace": "burstgpt",
+    "log": "conversation",
+    "start_h": 522.0,
+    "window_h": 0.26667,
+    "window_n": 115,
+    "load": 2.04,
+    "bin_s": 120.0,
+    "compression": 4.0
+  },
+  "by_source": {
+    "math500": {
+      "n": 49,
+      "deadline_met": 0.9796,
+      "accuracy": 0.8367,
+      "correct_and_on_time": 0.8367,
+      "thinking_tokens_mean": 3139.7551
+    }
+  },
+  "by_slack": {
+    "1.5": {
+      "n": 20,
+      "deadline_met": 0.95,
+      "accuracy": 0.8
+    },
+    "3.0": {
+      "n": 14,
+      "deadline_met": 1,
+      "accuracy": 0.9286
+    },
+    "6.0": {
+      "n": 15,
+      "deadline_met": 1,
+      "accuracy": 0.8
+    }
+  }
+}

@@ -1,0 +1,200 @@
+{
+  "gateway": {
+    "requests": 1875,
+    "think": 783,
+    "passthrough": 1092,
+    "rejected": 0,
+    "deferred": 0,
+    "deferred_s": 0.0,
+    "cut": 104,
+    "announced": 343,
+    "notices": 970,
+    "upstream_errors": 0,
+    "serial_waits": 0,
+    "serial_wait_s": 0.0,
+    "oracle_hits": 0,
+    "oracle_misses": 0,
+    "oracle_prompts": 124,
+    "labels": "length",
+    "reject_waiting": 2.0,
+    "admit_rate": 0.25,
+    "admit_burst": 8.0
+  },
+  "controller": {
+    "policy": "brownout",
+    "notice": "announced",
+    "predictor": "online",
+    "mode": "settled",
+    "cutting": false,
+    "in_flight": 0,
+    "cuts": 344,
+    "max_frac": 0.9,
+    "exit_at": 0.98,
+    "use_bank": false,
+    "ranked": {
+      "cuts_with_probs": 116,
+      "cuts_flat": 27,
+      "ticks": 1552,
+      "shed_tokens": 460136,
+      "settled_cuts": 102,
+      "exits": 40,
+      "bank": 0.0
+    }
+  },
+  "pressure": {
+    "p": 0.0,
+    "waiting": 0.0,
+    "running": 0.0,
+    "tpot_ms": null,
+    "tpot_slo_ms": 35.0,
+    "samples": 7474,
+    "errors": 0,
+    "p_hist_deciles": [
+      3303,
+      657,
+      602,
+      349,
+      418,
+      396,
+      328,
+      255,
+      263,
+      903
+    ]
+  },
+  "replicas": [
+    {
+      "url": "http://172.31.0.228:8000/v1",
+      "routed": 1092,
+      "requests": 1875,
+      "think": 783,
+      "load": 0.0,
+      "pressure": {
+        "p": 0.0,
+        "waiting": 0.0,
+        "running": 0.0,
+        "tpot_ms": null,
+        "tpot_slo_ms": 35.0,
+        "samples": 7474,
+        "errors": 0,
+        "p_hist_deciles": [
+          3303,
+          657,
+          602,
+          349,
+          418,
+          396,
+          328,
+          255,
+          263,
+          903
+        ]
+      }
+    }
+  ],
+  "jev": {
+    "submitted": 783,
+    "asked": 783,
+    "answered": 774,
+    "before_first_token": 96,
+    "during_decode": 678,
+    "after_finish": 1,
+    "dropped_finished": 0,
+    "tier_lowered": 306,
+    "tier_raised": 100,
+    "priority_changed": 480,
+    "wait_s": 40.894,
+    "mean_wait_s": 0.052,
+    "queued": 0,
+    "workers": 0
+  },
+  "probe": {
+    "submitted": 0,
+    "labeled": 0,
+    "probes": 0,
+    "errors": 0,
+    "dropped": 0,
+    "no_reference": 0,
+    "needed_below_used": 0,
+    "wait_s": 0.0,
+    "enabled": false,
+    "queued": 0,
+    "in_flight": 0,
+    "probes_per_label": null,
+    "by_edge": {}
+  },
+  "judge": {
+    "submitted": 639,
+    "replaced": 0,
+    "asked": 639,
+    "answered": 627,
+    "failed": 11,
+    "after_finish": 1,
+    "wait_s": 0.388,
+    "call_ms": 498772.09699999954,
+    "settled_sum": 419.5683784758885,
+    "enabled": true,
+    "signal": "settled",
+    "backend": "feat",
+    "queued": 0,
+    "workers": 0,
+    "mean_call_ms": 795.5,
+    "mean_settled": 0.6692
+  },
+  "classifier": {
+    "buckets": [
+      "0-32",
+      "32-128",
+      "128-256",
+      "256-512",
+      "512-1K",
+      "1K-2K",
+      "2K-4K",
+      "4K-8K",
+      "8K-16K",
+      "16K+"
+    ],
+    "current_model": "Qwen/Qwen3-4B",
+    "upgrades": 0,
+    "pressure": 0.0,
+    "shadow": true,
+    "pending": 0,
+    "updates": 291,
+    "jev": {
+      "calls": 1159,
+      "failures": 0,
+      "skipped_busy": 19,
+      "last_error": null,
+      "servers": 2,
+      "call_s": 1911.114,
+      "mean_call_s": 1.649
+    },
+    "versions": {
+      "Qwen/Qwen3-4B": {
+        "labels": 85,
+        "censored": 206,
+        "window": 85,
+        "paired": {
+          "online": {
+            "n": 85,
+            "exact": 15,
+            "within_one": 48,
+            "under": 27,
+            "p_true": 14.4878
+          },
+          "jev": {
+            "n": 85,
+            "exact": 34,
+            "within_one": 68,
+            "under": 41,
+            "p_true": 15.1513
+          }
+        },
+        "exact": 0.17647058823529413,
+        "within_one": 0.5647058823529412,
+        "under": 0.3176470588235294,
+        "mean_abs_error": 1.423529411764706
+      }
+    }
+  }
+}

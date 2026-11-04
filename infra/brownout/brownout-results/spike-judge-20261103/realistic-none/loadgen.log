@@ -1,0 +1,310 @@
+   1/49 OK on-time   50.3s slack=3.0
+   2/49 OK on-time   50.7s slack=1.5
+   3/49 OK on-time   38.1s slack=6.0
+   4/49 OK on-time   73.5s slack=3.0
+   5/49 OK on-time  102.4s slack=6.0
+   6/49 OK on-time   72.2s slack=3.0
+   7/49 OK on-time   87.4s slack=1.5
+   8/49 OK on-time  167.2s slack=6.0
+   9/49 OK on-time   84.5s slack=1.5
+  10/49 OK on-time  150.3s slack=1.5
+  11/49 OK on-time   85.4s slack=3.0
+  12/49 OK on-time  147.1s slack=3.0
+  13/49 OK on-time  136.1s slack=6.0
+  14/49 OK on-time  310.6s slack=3.0
+  15/49 OK on-time  273.4s slack=3.0
+  16/49 OK on-time  273.6s slack=3.0
+  17/49 OK on-time  210.2s slack=6.0
+  18/49 OK on-time  205.9s slack=1.5
+  19/49 OK on-time  316.4s slack=3.0
+  20/49 OK on-time  271.0s slack=6.0
+  21/49 OK on-time  351.1s slack=1.5
+  22/49 OK on-time  387.1s slack=6.0
+  23/49 OK on-time  452.9s slack=1.5
+  24/49 X  LATE     432.5s slack=1.5
+  25/49 OK on-time  447.8s slack=3.0
+  26/49 OK on-time  401.2s slack=6.0
+  27/49 OK LATE     455.6s slack=1.5
+  28/49 X  on-time  435.8s slack=6.0
+  29/49 OK on-time  456.2s slack=1.5
+  30/49 X  on-time  399.6s slack=1.5
+  31/49 OK on-time  481.8s slack=1.5
+  32/49 OK on-time  417.9s slack=6.0
+  33/49 OK on-time  490.2s slack=3.0
+  34/49 OK on-time  470.0s slack=6.0
+  35/49 OK on-time  549.6s slack=3.0
+  36/49 OK LATE     513.2s slack=1.5
+  37/49 OK on-time  592.3s slack=1.5
+  38/49 OK on-time  576.6s slack=6.0
+  39/49 OK on-time  660.8s slack=1.5
+  40/49 OK on-time  645.5s slack=1.5
+  41/49 OK on-time  588.1s slack=3.0
+  42/49 OK on-time  659.1s slack=3.0
+  43/49 X  on-time  659.7s slack=1.5
+  44/49 X  LATE     701.2s slack=1.5
+  45/49 X  LATE     633.8s slack=1.5
+  46/49 X  LATE     701.1s slack=1.5
+  47/49 OK on-time  708.2s slack=6.0
+  48/49 OK on-time  714.2s slack=6.0
+  49/49 X  on-time  679.0s slack=6.0
+{
+  "n": 49,
+  "accuracy": 0.8367,
+  "errors": 0,
+  "rejected": 0,
+  "cancelled": 0,
+  "latency_p50_s": 417.9027,
+  "latency_p90_s": 660.7645,
+  "latency_p95_s": 701.174,
+  "latency_p99_s": 714.1916,
+  "rounds_mean": 1.6735,
+  "llm_calls_mean": 3.5306,
+  "prompt_tokens_mean": 462.6531,
+  "thinking_tokens_mean": 6368.2245,
+  "answer_tokens_mean": 1152.6531,
+  "deadline_met": 0.8776,
+  "correct_and_on_time": 0.7959,
+  "mode": "trace",
+  "t0": 1793752849.2538142,
+  "wall_s": 873.1,
+  "capacity": 0.1,
+  "profile": "120:0.887,120:3.193",
+  "profile_s": 240.0,
+  "arrivals": 49,
+  "tail_s": 900.0,
+  "by_phase": {
+    "baseline": {
+      "n": 7,
+      "accuracy": 1,
+      "deadline_met": 1,
+      "correct_and_on_time": 1,
+      "latency_p50_s": 167.1894,
+      "latency_p95_s": 660.7645,
+      "thinking_tokens_mean": 5579.7143,
+      "cancelled": 0
+    },
+    "burst": {
+      "n": 42,
+      "accuracy": 0.8095,
+      "deadline_met": 0.8571,
+      "correct_and_on_time": 0.7619,
+      "latency_p50_s": 432.4854,
+      "latency_p95_s": 701.174,
+      "thinking_tokens_mean": 6499.6429,
+      "cancelled": 0
+    }
+  },
+  "by_segment": {
+    "0": {
+      "n": 7,
+      "accuracy": 1,
+      "deadline_met": 1,
+      "correct_and_on_time": 1,
+      "latency_p50_s": 167.1894,
+      "latency_p95_s": 660.7645,
+      "thinking_tokens_mean": 5579.7143,
+      "cancelled": 0
+    },
+    "1": {
+      "n": 42,
+      "accuracy": 0.8095,
+      "deadline_met": 0.8571,
+      "correct_and_on_time": 0.7619,
+      "latency_p50_s": 432.4854,
+      "latency_p95_s": 701.174,
+      "thinking_tokens_mean": 6499.6429,
+      "cancelled": 0
+    }
+  },
+  "by_band": {
+    "L1": {
+      "n": 3,
+      "accuracy": 1,
+      "deadline_met": 1,
+      "correct_and_on_time": 1,
+      "latency_p50_s": 73.4633,
+      "latency_p95_s": 87.3641,
+      "thinking_tokens_mean": 1463,
+      "cancelled": 0
+    },
+    "L2": {
+      "n": 10,
+      "accuracy": 0.8,
+      "deadline_met": 0.9,
+      "correct_and_on_time": 0.8,
+      "latency_p50_s": 270.986,
+      "latency_p95_s": 470.0358,
+      "thinking_tokens_mean": 4217.3,
+      "cancelled": 0
+    },
+    "L3": {
+      "n": 11,
+      "accuracy": 0.9091,
+      "deadline_met": 0.7273,
+      "correct_and_on_time": 0.7273,
+      "latency_p50_s": 273.5987,
+      "latency_p95_s": 633.7563,
+      "thinking_tokens_mean": 5125.4545,
+      "cancelled": 0
+    },
+    "L4": {
+      "n": 13,
+      "accuracy": 0.9231,
+      "deadline_met": 1,
+      "correct_and_on_time": 0.9231,
+      "latency_p50_s": 399.6082,
+      "latency_p95_s": 659.0965,
+      "thinking_tokens_mean": 6096.6154,
+      "cancelled": 0
+    },
+    "L5": {
+      "n": 12,
+      "accuracy": 0.6667,
+      "deadline_met": 0.8333,
+      "correct_and_on_time": 0.6667,
+      "latency_p50_s": 659.702,
+      "latency_p95_s": 701.174,
+      "thinking_tokens_mean": 10820.4167,
+      "cancelled": 0
+    }
+  },
+  "by_band_phase": {
+    "L1": {
+      "burst": {
+        "n": 3,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 73.4633,
+        "latency_p95_s": 87.3641,
+        "thinking_tokens_mean": 1463,
+        "cancelled": 0
+      }
+    },
+    "L2": {
+      "baseline": {
+        "n": 1,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 167.1894,
+        "latency_p95_s": 167.1894,
+        "thinking_tokens_mean": 3821,
+        "cancelled": 0
+      },
+      "burst": {
+        "n": 9,
+        "accuracy": 0.7778,
+        "deadline_met": 0.8889,
+        "correct_and_on_time": 0.7778,
+        "latency_p50_s": 316.3932,
+        "latency_p95_s": 470.0358,
+        "thinking_tokens_mean": 4261.3333,
+        "cancelled": 0
+      }
+    },
+    "L3": {
+      "baseline": {
+        "n": 1,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 50.3303,
+        "latency_p95_s": 50.3303,
+        "thinking_tokens_mean": 2069,
+        "cancelled": 0
+      },
+      "burst": {
+        "n": 10,
+        "accuracy": 0.9,
+        "deadline_met": 0.7,
+        "correct_and_on_time": 0.7,
+        "latency_p50_s": 273.5987,
+        "latency_p95_s": 633.7563,
+        "thinking_tokens_mean": 5431.1,
+        "cancelled": 0
+      }
+    },
+    "L4": {
+      "baseline": {
+        "n": 3,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 50.6727,
+        "latency_p95_s": 310.5554,
+        "thinking_tokens_mean": 3128,
+        "cancelled": 0
+      },
+      "burst": {
+        "n": 10,
+        "accuracy": 0.9,
+        "deadline_met": 1,
+        "correct_and_on_time": 0.9,
+        "latency_p50_s": 401.1532,
+        "latency_p95_s": 708.2181,
+        "thinking_tokens_mean": 6987.2,
+        "cancelled": 0
+      }
+    },
+    "L5": {
+      "baseline": {
+        "n": 2,
+        "accuracy": 1,
+        "deadline_met": 1,
+        "correct_and_on_time": 1,
+        "latency_p50_s": 592.3461,
+        "latency_p95_s": 660.7645,
+        "thinking_tokens_mean": 11892,
+        "cancelled": 0
+      },
+      "burst": {
+        "n": 10,
+        "accuracy": 0.6,
+        "deadline_met": 0.8,
+        "correct_and_on_time": 0.6,
+        "latency_p50_s": 645.4866,
+        "latency_p95_s": 714.1916,
+        "thinking_tokens_mean": 10606.1,
+        "cancelled": 0
+      }
+    }
+  },
+  "trace": {
+    "trace": "burstgpt",
+    "log": "conversation",
+    "start_h": 522.0,
+    "window_h": 0.26667,
+    "window_n": 115,
+    "load": 2.04,
+    "bin_s": 120.0,
+    "compression": 4.0
+  },
+  "by_source": {
+    "math500": {
+      "n": 49,
+      "deadline_met": 0.8776,
+      "accuracy": 0.8367,
+      "correct_and_on_time": 0.7959,
+      "thinking_tokens_mean": 6368.2245
+    }
+  },
+  "by_slack": {
+    "1.5": {
+      "n": 20,
+      "deadline_met": 0.7,
+      "accuracy": 0.7
+    },
+    "3.0": {
+      "n": 14,
+      "deadline_met": 1,
+      "accuracy": 1
+    },
+    "6.0": {
+      "n": 15,
+      "deadline_met": 1,
+      "accuracy": 0.8667
+    }
+  }
+}
+wrote /opt/brownout/results/qwen3-4b-spike-judge-20261103/realistic-none

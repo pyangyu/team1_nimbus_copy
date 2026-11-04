@@ -1,0 +1,115 @@
+   1/64 OK on-time   71.0s slack=1.5
+   2/64 OK on-time  210.3s slack=6.0
+   3/64 OK LATE     312.2s slack=1.5
+   4/64 OK on-time  313.9s slack=6.0
+   5/64 OK on-time  371.9s slack=6.0
+   6/64 OK on-time  315.1s slack=6.0
+   7/64 OK LATE     338.8s slack=1.5
+   8/64 OK on-time  360.0s slack=6.0
+   9/64 OK on-time  375.1s slack=6.0
+  10/64 OK on-time  397.5s slack=1.5
+  11/64 OK on-time  346.4s slack=3.0
+  12/64 OK LATE     340.1s slack=1.5
+  13/64 OK on-time  385.1s slack=6.0
+  14/64 OK on-time  417.0s slack=6.0
+  15/64 OK on-time  422.5s slack=6.0
+  16/64 OK on-time  445.0s slack=6.0
+  17/64 OK LATE     502.4s slack=1.5
+  18/64 OK on-time  518.0s slack=3.0
+  19/64 X  on-time  465.8s slack=3.0
+  20/64 OK on-time  491.3s slack=1.5
+  21/64 OK on-time  600.5s slack=6.0
+  22/64 OK on-time  611.9s slack=3.0
+  23/64 OK on-time  672.3s slack=3.0
+  24/64 OK on-time  664.4s slack=3.0
+  25/64 OK on-time  662.3s slack=1.5
+  26/64 OK on-time  685.4s slack=6.0
+  27/64 OK LATE     730.3s slack=1.5
+  28/64 OK LATE     688.9s slack=1.5
+  29/64 OK on-time  771.8s slack=6.0
+  30/64 OK LATE     821.5s slack=1.5
+  31/64 OK LATE     794.4s slack=3.0
+  32/64 OK on-time  792.1s slack=6.0
+  33/64 OK on-time  810.6s slack=3.0
+  34/64 OK LATE     831.5s slack=1.5
+  35/64 OK on-time  818.1s slack=6.0
+  36/64 OK on-time  839.1s slack=6.0
+  37/64 OK on-time  804.7s slack=3.0
+  38/64 OK on-time  864.8s slack=6.0
+  39/64 OK on-time  878.2s slack=3.0
+  40/64 OK on-time  832.4s slack=6.0
+  41/64 OK LATE     861.2s slack=1.5
+  42/64 OK on-time  894.7s slack=3.0
+  43/64 OK LATE     881.3s slack=1.5
+  44/64 OK on-time  889.2s slack=6.0
+  45/64 OK LATE     847.7s slack=1.5
+  46/64 OK on-time  878.9s slack=3.0
+  47/64 OK LATE     909.4s slack=1.5
+  48/64 X  LATE     923.7s slack=3.0
+  49/64 OK on-time  919.0s slack=3.0
+  50/64 OK LATE     920.9s slack=3.0
+  51/64 OK on-time  940.3s slack=6.0
+  52/64 OK LATE     921.4s slack=1.5
+  53/64 X  on-time  923.7s slack=3.0
+  54/64 OK on-time  906.5s slack=3.0
+  55/64 X  LATE     919.1s slack=1.5
+  56/64 OK on-time  931.3s slack=6.0
+  57/64 OK LATE     951.5s slack=1.5
+  58/64 X  on-time  914.8s slack=6.0
+  59/64 OK on-time  912.3s slack=6.0
+  60/64 X  on-time  924.1s slack=3.0
+  61/64 X  on-time  929.8s slack=3.0
+  62/64 OK LATE     924.8s slack=1.5
+  63/64 X  LATE     951.5s slack=1.5
+  64/64 OK LATE     952.5s slack=1.5
+{
+  "n": 64,
+  "accuracy": 0.875,
+  "errors": 0,
+  "rejected": 0,
+  "cancelled": 0,
+  "latency_p50_s": 810.5566,
+  "latency_p90_s": 924.8001,
+  "latency_p95_s": 940.2866,
+  "latency_p99_s": 951.5454,
+  "rounds_mean": 1.75,
+  "llm_calls_mean": 3.625,
+  "prompt_tokens_mean": 628.125,
+  "thinking_tokens_mean": 6858.2344,
+  "answer_tokens_mean": 1217.5,
+  "deadline_met": 0.6719,
+  "correct_and_on_time": 0.5938,
+  "mode": "rate",
+  "t0": 1793751819.1136951,
+  "wall_s": 1026.1,
+  "rate": 1.0,
+  "arrivals": "poisson",
+  "burstiness": 0.8037970626125565,
+  "by_source": {
+    "math500": {
+      "n": 64,
+      "deadline_met": 0.6719,
+      "accuracy": 0.875,
+      "correct_and_on_time": 0.5938,
+      "thinking_tokens_mean": 6858.2344
+    }
+  },
+  "by_slack": {
+    "1.5": {
+      "n": 22,
+      "deadline_met": 0.1818,
+      "accuracy": 0.9091
+    },
+    "3.0": {
+      "n": 19,
+      "deadline_met": 0.8421,
+      "accuracy": 0.7368
+    },
+    "6.0": {
+      "n": 23,
+      "deadline_met": 1,
+      "accuracy": 0.9565
+    }
+  }
+}
+wrote /opt/brownout/results/qwen3-4b-spike-judge-20261103/warmup

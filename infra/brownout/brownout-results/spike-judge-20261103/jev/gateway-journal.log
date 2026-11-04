@@ -1,0 +1,325 @@
+Oct 22 20:10:04 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 22 20:10:04 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 1.089s CPU time.
+Oct 22 20:10:04 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 22 20:39:09 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 22 20:39:09 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 22 20:39:09 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 22 20:39:09 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 1min 49.285s CPU time.
+-- Boot 16fc5ed729364fea87d138b1eaa6bdec --
+Oct 22 20:49:26 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 22 20:55:16 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Current command vanished from the unit file, execution of the command list won't be resumed.
+Oct 22 20:55:16 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 22 20:55:17 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 22 20:55:17 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 22 20:55:17 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 1.662s CPU time.
+Oct 22 20:55:17 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 22 21:03:13 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 22 21:03:14 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 22 21:03:14 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 22 21:03:14 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 28.691s CPU time.
+-- Boot 9f3f078cda83480694fb4bb0865ffbaa --
+Oct 22 21:24:47 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 22 21:29:33 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Current command vanished from the unit file, execution of the command list won't be resumed.
+Oct 22 21:29:33 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 22 21:29:33 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 22 21:29:33 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 22 21:29:33 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 1.642s CPU time.
+Oct 22 21:29:33 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 22 22:25:26 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 22 22:25:26 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 22 22:25:26 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 22 22:25:26 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 25.585s CPU time.
+-- Boot 82b2009249c74226984d41ccbdd5946a --
+Oct 23 20:00:59 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 23 20:15:53 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 23 20:15:53 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 23 20:15:53 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 23 20:15:53 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 3.842s CPU time.
+-- Boot 954ebbc68ce7437982e24fa1e1476bca --
+Oct 24 14:45:24 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 24 15:00:10 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 24 15:00:10 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 24 15:00:10 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 24 15:00:10 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 4.329s CPU time.
+-- Boot 49a7bdae4b244fff9f8adb84f61c798b --
+Oct 24 15:06:33 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 24 15:42:03 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 24 15:42:03 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 24 15:42:03 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 24 15:42:03 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 8.767s CPU time.
+Oct 24 15:42:03 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 24 15:47:26 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 24 15:47:26 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 24 15:47:26 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 24 15:47:26 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 2.462s CPU time.
+-- Boot b0b2bbe5add54c50b78e4edb66838a57 --
+Oct 24 16:19:05 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 24 17:13:53 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 24 17:13:53 ip-172-31-89-192 python[434]: ERROR:    Traceback (most recent call last):
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:   File "/opt/brownout/venv/lib/python3.12/site-packages/numpy/lib/_npyio_impl.py", line 786, in _savez
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:     format.write_array(fid, val,
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:   File "/opt/brownout/venv/lib/python3.12/site-packages/numpy/lib/_format_impl.py", line 777, in write_array
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:     fp.write(chunk.tobytes('C'))
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/zipfile/__init__.py", line 1262, in write
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:     self._fileobj.write(data)
+Oct 24 17:13:53 ip-172-31-89-192 python[434]: OSError: [Errno 28] No space left on device
+Oct 24 17:13:53 ip-172-31-89-192 python[434]: During handling of the above exception, another exception occurred:
+Oct 24 17:13:53 ip-172-31-89-192 python[434]: Traceback (most recent call last):
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:   File "/opt/brownout/venv/lib/python3.12/site-packages/starlette/routing.py", line 656, in lifespan
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:     async with self.lifespan_context(app) as maybe_state:
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/contextlib.py", line 217, in __aexit__
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:     await anext(self.gen)
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:   File "/opt/brownout/src/gateway/brownout_gateway/proxy.py", line 333, in lifespan
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:     gw.clf.save(state_path)
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:   File "/opt/brownout/src/classifier/budget_classifier/classifier.py", line 240, in save
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:     np.savez_compressed(tmp, W=self.online.W, G=self.online.G, meta=json.dumps(meta))
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:   File "/opt/brownout/venv/lib/python3.12/site-packages/numpy/lib/_npyio_impl.py", line 753, in savez_compressed
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:     _savez(file, args, kwds, True, allow_pickle=allow_pickle)
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:   File "/opt/brownout/venv/lib/python3.12/site-packages/numpy/lib/_npyio_impl.py", line 785, in _savez
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:     with zipf.open(fname, 'w', force_zip64=True) as fid:
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/zipfile/__init__.py", line 1274, in close
+Oct 24 17:13:53 ip-172-31-89-192 python[434]:     self._fileobj.write(buf)
+Oct 24 17:13:53 ip-172-31-89-192 python[434]: OSError: [Errno 28] No space left on device
+Oct 24 17:13:53 ip-172-31-89-192 python[434]: ERROR:    Application shutdown failed. Exiting.
+Oct 24 17:13:53 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 24 17:13:53 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 24 17:13:53 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 20.020s CPU time.
+-- Boot 1b04fe4cbb7c46838fed2ce598a0b9f9 --
+Oct 24 18:03:38 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 24 18:03:55 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 24 18:03:55 ip-172-31-89-192 python[431]: ERROR:    Traceback (most recent call last):
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:   File "/opt/brownout/venv/lib/python3.12/site-packages/numpy/lib/_npyio_impl.py", line 786, in _savez
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:     format.write_array(fid, val,
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:   File "/opt/brownout/venv/lib/python3.12/site-packages/numpy/lib/_format_impl.py", line 777, in write_array
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:     fp.write(chunk.tobytes('C'))
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/zipfile/__init__.py", line 1262, in write
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:     self._fileobj.write(data)
+Oct 24 18:03:55 ip-172-31-89-192 python[431]: OSError: [Errno 28] No space left on device
+Oct 24 18:03:55 ip-172-31-89-192 python[431]: During handling of the above exception, another exception occurred:
+Oct 24 18:03:55 ip-172-31-89-192 python[431]: Traceback (most recent call last):
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:   File "/opt/brownout/venv/lib/python3.12/site-packages/starlette/routing.py", line 656, in lifespan
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:     async with self.lifespan_context(app) as maybe_state:
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/contextlib.py", line 217, in __aexit__
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:     await anext(self.gen)
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:   File "/opt/brownout/src/gateway/brownout_gateway/proxy.py", line 333, in lifespan
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:     gw.clf.save(state_path)
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:   File "/opt/brownout/src/classifier/budget_classifier/classifier.py", line 240, in save
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:     np.savez_compressed(tmp, W=self.online.W, G=self.online.G, meta=json.dumps(meta))
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:   File "/opt/brownout/venv/lib/python3.12/site-packages/numpy/lib/_npyio_impl.py", line 753, in savez_compressed
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:     _savez(file, args, kwds, True, allow_pickle=allow_pickle)
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:   File "/opt/brownout/venv/lib/python3.12/site-packages/numpy/lib/_npyio_impl.py", line 785, in _savez
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:     with zipf.open(fname, 'w', force_zip64=True) as fid:
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:   File "/root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/zipfile/__init__.py", line 1274, in close
+Oct 24 18:03:55 ip-172-31-89-192 python[431]:     self._fileobj.write(buf)
+Oct 24 18:03:55 ip-172-31-89-192 python[431]: OSError: [Errno 28] No space left on device
+Oct 24 18:03:55 ip-172-31-89-192 python[431]: ERROR:    Application shutdown failed. Exiting.
+Oct 24 18:03:55 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 24 18:03:55 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+-- Boot b56a55f52ca8452296983f782203cc12 --
+Oct 24 18:35:44 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+-- Boot ea13d6020f754357a10ea210b43f9943 --
+Oct 24 19:01:55 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 24 19:02:11 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 24 19:02:11 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 24 19:02:11 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+-- Boot 8a7e5a0263e34649b71a73b1d1e257e3 --
+Oct 24 19:07:41 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 24 19:16:45 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Current command vanished from the unit file, execution of the command list won't be resumed.
+Oct 24 19:16:45 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 24 19:16:45 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 24 19:16:45 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 24 19:16:45 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 2.816s CPU time.
+Oct 24 19:16:45 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 24 22:00:41 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 24 22:00:42 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 24 22:00:42 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 24 22:00:42 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 10min 14.442s CPU time.
+-- Boot 2628888e83a74b8ea76b090af3ecd586 --
+Oct 28 17:22:13 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 28 17:29:46 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 28 17:29:46 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 28 17:29:46 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 28 17:29:46 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 3.229s CPU time.
+-- Boot f3bd9be8bf944982b26eec3d9deac54a --
+Oct 28 17:36:48 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 28 17:42:23 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Current command vanished from the unit file, execution of the command list won't be resumed.
+Oct 28 17:42:23 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 28 17:42:23 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 28 17:42:23 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 28 17:42:23 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 2.318s CPU time.
+Oct 28 17:42:23 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 28 18:33:59 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 28 18:33:59 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 28 18:33:59 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 28 18:33:59 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 2min 583ms CPU time.
+-- Boot 52a025a46e1e4999aed56eacddf11f74 --
+Oct 28 20:32:25 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 28 20:38:39 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 28 20:38:39 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 28 20:38:39 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 28 20:38:39 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 1.713s CPU time.
+Oct 28 20:38:39 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 28 23:00:05 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 28 23:00:05 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 28 23:00:05 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 28 23:00:05 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 5min 45.170s CPU time.
+-- Boot ebfea4c5e7634458842b9e771fa94c74 --
+Oct 29 04:28:14 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 29 04:38:52 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Current command vanished from the unit file, execution of the command list won't be resumed.
+Oct 29 04:38:52 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 29 04:38:52 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 29 04:38:52 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 29 04:38:52 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 2.894s CPU time.
+Oct 29 04:38:52 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 29 05:04:48 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 29 05:04:49 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 29 05:04:49 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 29 05:04:49 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 7.483s CPU time.
+Oct 29 05:04:49 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 29 07:08:55 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Current command vanished from the unit file, execution of the command list won't be resumed.
+Oct 29 07:08:55 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 29 07:08:55 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 29 07:08:55 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 29 07:08:55 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 4min 46.895s CPU time.
+Oct 29 07:08:55 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 29 08:13:01 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 29 08:13:02 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 29 08:13:02 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 29 08:13:02 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 2min 39.269s CPU time.
+Oct 29 08:13:02 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 29 09:21:27 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 29 09:21:27 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 29 09:21:27 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 29 09:21:27 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 2min 56.747s CPU time.
+Oct 29 09:21:27 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 29 10:15:08 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 29 10:15:09 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 29 10:15:09 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 29 10:15:09 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 2min 12.986s CPU time.
+-- Boot 40daf7aca74844c689d2e27d7479798d --
+Oct 30 20:06:59 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 30 20:50:14 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Current command vanished from the unit file, execution of the command list won't be resumed.
+Oct 30 20:50:14 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 30 20:50:15 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 30 20:50:15 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 30 20:50:15 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 13.647s CPU time.
+Oct 30 20:50:15 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 31 00:54:57 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 31 00:54:57 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 31 00:54:57 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 31 00:54:57 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 9min 49.189s CPU time.
+-- Boot 479fd580568143f9939e08b3295c2cc9 --
+Oct 31 16:05:56 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 31 16:14:37 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 31 16:14:37 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 31 16:14:37 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 31 16:14:37 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 4.660s CPU time.
+Oct 31 16:14:37 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Oct 31 19:00:27 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Oct 31 19:00:27 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Oct 31 19:00:27 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Oct 31 19:00:27 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 10min 33.422s CPU time.
+-- Boot dd078487c6a24bef9c5102a108661518 --
+Nov 01 03:53:23 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 01 04:50:46 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Current command vanished from the unit file, execution of the command list won't be resumed.
+Nov 01 04:50:46 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 01 04:50:47 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 01 04:50:47 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 01 04:50:47 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 26.657s CPU time.
+Nov 01 04:50:47 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 01 09:18:18 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 01 09:18:19 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 01 09:18:19 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 01 09:18:19 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 29min 25.416s CPU time.
+-- Boot bc48b1e5940c4625aa014d4906aed559 --
+Nov 01 18:13:53 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 01 18:22:25 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 01 18:22:25 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 01 18:22:25 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 01 18:22:25 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 4.734s CPU time.
+Nov 01 18:22:25 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 01 22:11:36 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 01 22:11:37 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 01 22:11:37 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 01 22:11:37 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 33min 32.082s CPU time.
+-- Boot c79091c741c5400cbe5184c55e4d16f4 --
+Nov 02 00:29:14 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 02 00:38:27 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 02 00:38:28 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 02 00:38:28 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 02 00:38:28 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 4.538s CPU time.
+Nov 02 00:38:28 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 02 01:15:58 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 02 01:15:59 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 02 01:15:59 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 02 01:15:59 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 6min 11.028s CPU time.
+-- Boot 0fe32d11be6645c496b6184c09d3996f --
+Nov 02 01:23:16 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 02 01:31:51 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 02 01:31:51 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 02 01:31:51 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 02 01:31:51 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 4.249s CPU time.
+Nov 02 01:31:51 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 02 03:05:39 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 02 03:05:39 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 02 03:05:39 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 02 03:05:39 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 10min 54.570s CPU time.
+-- Boot 19d549be163a4b049d2a2fd44efae668 --
+Nov 02 05:21:50 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 02 05:30:33 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Current command vanished from the unit file, execution of the command list won't be resumed.
+Nov 02 05:30:33 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 02 05:30:33 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 02 05:30:33 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 02 05:30:33 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 4.508s CPU time.
+Nov 02 05:30:33 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 02 07:00:07 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 02 07:00:08 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 02 07:00:08 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 02 07:00:08 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 6min 9.141s CPU time.
+-- Boot 02af219c74954980b944b96b840d72f0 --
+Nov 02 16:16:23 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 02 16:23:11 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Current command vanished from the unit file, execution of the command list won't be resumed.
+Nov 02 16:23:11 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 02 16:23:11 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 02 16:23:11 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 02 16:23:11 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 3.486s CPU time.
+Nov 02 16:23:11 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 02 21:46:26 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 02 21:46:26 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 02 21:46:26 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 02 21:46:26 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 4min 17.585s CPU time.
+-- Boot ca2076efd9034b28b7fa9ab8e17f6b30 --
+Nov 03 17:11:24 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 03 17:14:48 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Current command vanished from the unit file, execution of the command list won't be resumed.
+Nov 03 17:14:48 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 03 17:14:48 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 03 17:14:48 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 03 17:14:48 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 1.565s CPU time.
+Nov 03 17:14:48 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 03 17:54:25 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 03 17:54:25 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 03 17:54:25 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 03 17:54:25 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 12.830s CPU time.
+-- Boot 7da0391790644a9cae8338180dc9f70c --
+Nov 03 18:28:52 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 03 18:32:30 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 03 18:32:30 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 03 18:32:30 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 03 18:32:30 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 1.296s CPU time.
+Nov 03 18:32:30 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 03 19:48:23 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 03 19:48:23 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 03 19:48:23 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 03 19:48:23 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 5min 46.682s CPU time.
+-- Boot 90cb111703a54de2a40c03eb16d8f9ed --
+Nov 04 00:16:56 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
+Nov 04 00:23:01 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Current command vanished from the unit file, execution of the command list won't be resumed.
+Nov 04 00:23:01 ip-172-31-89-192 systemd[1]: Stopping brownout-gateway.service...
+Nov 04 00:23:01 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Deactivated successfully.
+Nov 04 00:23:01 ip-172-31-89-192 systemd[1]: Stopped brownout-gateway.service.
+Nov 04 00:23:01 ip-172-31-89-192 systemd[1]: brownout-gateway.service: Consumed 1.793s CPU time.
+Nov 04 00:23:01 ip-172-31-89-192 systemd[1]: Started brownout-gateway.service.
