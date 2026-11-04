@@ -91,7 +91,9 @@ REAL_COLUMNS = ("policy", "n", "accuracy", "deadline_met", "correct_and_on_time"
                 "accuracy_baseline", "accuracy_burst", "cancelled", "latency_p50_s", "latency_p95_s",
                 "thinking_tokens_mean", "think", "cut", "announced", "notices", "p_mean", "p_at_cap", "p_zero",
                 "queue_frac", "tpot_ms_mean", "p_mean_baseline", "p_mean_burst", "word_model_window", "word_model_exact",
-                "word_model_within_one", "word_model_under", "jev_asked", "replica_think", "p_mean_replicas")
+                "word_model_within_one", "word_model_under", "jev_asked", "replica_think", "p_mean_replicas",
+                "cut_mode", "max_frac", "exit_at", "judge", "settled_cuts", "exits", "judged", "judge_mean_ms",
+                "judge_mean_settled")
 REJECT_WAITING = float(os.environ.get("BROWNOUT_REJECT_WAITING", "2"))
 ADMIT_RATE = float(os.environ.get("BROWNOUT_ADMIT_RATE", "0.25"))
 ADMIT_BURST = float(os.environ.get("BROWNOUT_ADMIT_BURST", "8"))
@@ -170,26 +172,10 @@ def write_results() -> None:
 def test_policy_under_load(dataset, spec, seed):
     sw = SWEEPS[dataset]
     n, rate = sw["n"], sw["rate"]
-    parts = spec.split(":")
-    # optional trailing f<frac> (shed cap, default BROWNOUT_MAX_FRAC) and e<exit> (settled exit threshold)
-    max_frac, exit_at, judge = MAX_FRAC, None, "jev"
-    while parts and ((parts[-1][:1] in ("f", "e") and parts[-1][1:].replace(".", "", 1).isdigit())
-                     or parts[-1] in ("jjev", "jfeat")):
-        tok = parts.pop()
-        if tok[0] == "j":
-            judge = tok[1:]
-        elif tok[0] == "f":
-            max_frac = float(tok[1:])
-        else:
-            exit_at = float(tok[1:])
-    policy, notice, predictor, mode = (parts + ["", "", ""])[:4]
+    policy, notice, predictor, mode, max_frac, exit_at, judge = parse_spec(spec)
     if predictor == "jev-learn" and "learner" not in gw("GET", "/v1/stats")["jev"]:
         pytest.skip("trained Jev: the online Jev learner is not deployed yet")
-    gw("POST", "/admin/policy", json={"policy": policy, "notice": notice or "silent", "predictor": predictor or "jev",
-                                        "cut": mode or "proportional", "max_frac": max_frac,
-                                        "exit_at": exit_at, "judge_signal": JUDGE_SIGNAL, "judge": judge, "bank": BANK,
-                                        "reject_waiting": REJECT_WAITING, "admit_rate": ADMIT_RATE,
-                                        "admit_burst": ADMIT_BURST, "reset": True})
+    set_policy(spec, True)
     before = gw("GET", "/v1/stats")
     out = OUT / (f"{dataset}-{spec.replace(':', '-')}" + (f"-s{seed}" if seed else ""))
     out.mkdir(parents=True, exist_ok=True)
@@ -277,9 +263,31 @@ def wait_idle(timeout: float = 900) -> bool:
     return False
 
 
+def parse_spec(spec: str) -> tuple[str, str, str, str, float, float | None, str]:
+    """policy[:notice[:predictor[:cut]]][:f<frac>][:e<exit>][:j<judge>] -> its parts, defaults filled in.
+
+    The trailing tokens may come in any order: f caps the shed fraction (default BROWNOUT_MAX_FRAC), e sets the
+    settled exit threshold, jjev / jfeat pick the judge. The same grammar serves the default and the spike suites."""
+    parts = spec.split(":")
+    max_frac, exit_at, judge = MAX_FRAC, None, "jev"
+    while parts and ((parts[-1][:1] in ("f", "e") and parts[-1][1:].replace(".", "", 1).isdigit())
+                     or parts[-1] in ("jjev", "jfeat")):
+        tok = parts.pop()
+        if tok[0] == "j":
+            judge = tok[1:]
+        elif tok[0] == "f":
+            max_frac = float(tok[1:])
+        else:
+            exit_at = float(tok[1:])
+    policy, notice, predictor, mode = (parts + ["", "", ""])[:4]
+    return policy, notice or "silent", predictor or "jev", mode or "proportional", max_frac, exit_at, judge
+
+
 def set_policy(spec: str, reset: bool | str = True) -> tuple[str, str, str]:
-    policy, notice, predictor = (spec.split(":") + ["", ""])[:3]
-    gw("POST", "/admin/policy", json={"policy": policy, "notice": notice or "silent", "predictor": predictor or "jev",
+    policy, notice, predictor, mode, max_frac, exit_at, judge = parse_spec(spec)
+    gw("POST", "/admin/policy", json={"policy": policy, "notice": notice, "predictor": predictor,
+                                        "cut": mode, "max_frac": max_frac,
+                                        "exit_at": exit_at, "judge_signal": JUDGE_SIGNAL, "judge": judge, "bank": BANK,
                                         "reject_waiting": REJECT_WAITING, "admit_rate": ADMIT_RATE,
                                         "admit_burst": ADMIT_BURST, "reset": reset})
     return policy, notice, predictor
@@ -424,8 +432,15 @@ def test_realistic_policy(spec):
     ps = pressure_of(pressure_since(s["t0"], out), lambda t: workload.phase_at(profile, t - s["t0"]))
     d = {k: after["gateway"][k] - before["gateway"][k] for k in COUNTERS}
     ph = s.get("by_phase", {})
+    _, _, _, mode, max_frac, exit_at, judge = parse_spec(spec)
+    jd = {k: after["judge"][k] - before["judge"][k] for k in ("answered", "call_ms", "settled_sum")}
     row = {"policy": spec + (f"@{model}" if model else ""), "model": model or None, "workload": WORKLOAD, "capacity_wf_s": cap, "profile": s["profile"],
            "trace": s.get("trace"),
+           "cut_mode": after["controller"]["mode"], "max_frac": max_frac, "exit_at": exit_at, "judge": judge,
+           **{k: after["controller"]["ranked"][k] - before["controller"]["ranked"][k] for k in ("settled_cuts", "exits")},
+           "judged": jd["answered"],
+           "judge_mean_ms": round(jd["call_ms"] / jd["answered"], 1) if jd["answered"] else None,
+           "judge_mean_settled": round(jd["settled_sum"] / jd["answered"], 3) if jd["answered"] else None,
            **{k: s.get(k) for k in ("n", "accuracy", "deadline_met", "correct_and_on_time", "cancelled",
                                      "latency_p50_s", "latency_p95_s", "thinking_tokens_mean", "wall_s")},
            **{f"goodput_{k}": v.get("correct_and_on_time") for k, v in ph.items()},
