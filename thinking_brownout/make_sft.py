@@ -1,141 +1,165 @@
 #!/usr/bin/env python3
-"""Build SFT examples for cut-aware training from the runs of cut_bench.py (no model is run).
+"""SFT examples for the cut adapter, from the output of decisive_sample.py (no model is run).
 
-There is no budget: for each cut point the target is the SHORTEST continuation that
-  - ends with an acceptable answer (see --accept),
-  - closed its thinking by itself (or is the immediate close),
-  - and comes from a condition that was acceptable in at least --min-agree of its samples
-    (so a lucky guess does not become a training target).
+One example per cut point that has a target. The target is the qualified candidate with the lowest
+cost after the cut: thinking tokens + answer tokens beyond the uncut answer's length (so moving work
+into the answer is charged, but stripping the answer down to a bare box earns nothing):
+  stop now      close the thinking at the cut; correct in 4 of 4 tries, answer not redoing the work
+  a sample      one of the K continuations written under the data-generation instruction that is
+                closed, correct, derived (correct with its answer hidden) and decisive
+In the example, the instruction is replaced by the bare [cut] marker: the adapter learns to act like the
+instruction's best continuations without ever seeing it. Loss is on the target only (cut_alora.py).
 
---accept correct (default): the answer must be correct.
---accept either: correct, OR the same final answer the uncut run gave (needs no gold label,
-and lets traces the uncut model got wrong still teach "stop early"; those count half).
+Balance
+  --cap-concluded   at most this share of examples from cuts where the answer was already boxed
+  --max-stop-share  at most this share of "stop now" targets, so the adapter does not learn to always stop
+Validation is split by PROBLEM inside cut_alora.py train, so all cut points of a problem stay on one side.
 
-  python make_sft.py runs/Qwen__Qwen3.8-27B.sft.jsonl traces/Qwen__Qwen3.8-27B.jsonl
+  python make_sft.py runs/Qwen__Qwen3.8-27B.decisive.jsonl runs/Qwen__Qwen3.8-27B.more.decisive.jsonl \\
+      --traces traces/Qwen__Qwen3.8-27B.jsonl traces/Qwen__Qwen3.8-27B.more.jsonl
 """
 import argparse
 import json
 import os
-from collections import defaultdict
+import random
+from collections import Counter, defaultdict
 
 import numpy as np
 
-from cutlib import SUFFIX, final_box, notice_text, read_traces, same
+from cutlib import SUFFIX, read_traces
+from decisive_sample import bucket, select
+
+STATES = {"concluded": "has conclusion", "midway": "mid-way, solvable", "unsolved": "unsolved when uncut"}
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("runs")
-    ap.add_argument("traces")
-    ap.add_argument("--min-agree", type=int, default=0, help="0 = 2 when there are several samples, else 1")
-    ap.add_argument("--accept", default="correct", choices=["correct", "agree", "either"])
-    ap.add_argument("--max-think", type=int, default=2048,
-                    help="a target may use at most this many thinking tokens after the notice (a safety cap, "
-                         "not a budget the model is told)")
-    ap.add_argument("--cap-concluded", type=float, default=0.4,
-                    help="keep at most this share of 'has conclusion' examples (0 = keep all), so the adapter "
-                         "does not learn to always stop at once")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("runs", nargs="+", help="output files of decisive_sample.py")
+    ap.add_argument("--traces", nargs="+", required=True, help="the trace files those runs were made from")
+    ap.add_argument("--model", default="Qwen/Qwen3.8-27B", help="tokenizer, only for records without prefix_chars")
+    ap.add_argument("--need-stop", type=int, default=4, help="'stop now' must be correct in this many of 4 tries")
+    ap.add_argument("--min-redo", type=int, default=400,
+                    help="an answer longer than max(2x the uncut answer, this) counts as redoing the work")
+    ap.add_argument("--cap-concluded", type=float, default=0.4)
+    ap.add_argument("--max-stop-share", type=float, default=0.5,
+                    help="cap on the share of 'stop now' targets (0.5 = no more than continuations)")
+    ap.add_argument("--stop-below", type=int, default=32,
+                    help="a continuation with fewer thinking tokens than this is a stop in all but name: it counts "
+                         "as 'stop now' for the balance, so real continuations get their share")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
-    runs = []
-    for line in open(args.runs):
-        try:
-            runs.append(json.loads(line))
-        except json.JSONDecodeError:
-            pass
-    traces = {(r["id"], r.get("sample", 0)): r for r in read_traces(args.traces)}
-    kmax = max(r["k"] for r in runs) + 1
-    need = args.min_agree or (2 if kmax >= 2 else 1)
-    levels = [args.max_think]            # no budget levels: one target per cut point, the shortest correct one
-    by_cut = defaultdict(list)
-    for r in runs:
-        by_cut[(r["id"], r["sample"], r["u"])].append(r)
-
-    out_path = args.out or os.path.join("sft", os.path.basename(args.runs))
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    stats = defaultdict(lambda: defaultdict(list))        # state -> level -> [(has target, cost, uncut rest)]
-    examples = []
-    if True:
-        for (pid, sample, u), g in by_cut.items():
-            t = traces.get((pid, sample))
-            if t is None:
+    traces = {}
+    for path in args.traces:
+        for r in read_traces(path):
+            traces[(r["id"], r.get("sample", 0))] = r
+    recs, seen, n_unsolved = [], set(), 0
+    for path in args.runs:
+        for line in open(path):
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
                 continue
-            m = g[0]
-            state = ("has conclusion" if m["prefix_has_final_box"] else
-                     "mid-way, solvable" if m["uncut_correct"] else "unsolved when uncut")
-            uncut_final = final_box(t.get("answer"))
+            if r["key"] in seen:
+                continue
+            seen.add(r["key"])
+            if r["state"] == "unsolved":                    # older runs sampled these too; never a target
+                n_unsolved += 1
+                continue
+            recs.append(select(r, args))
 
-            def ok(r):
-                same_as_uncut = uncut_final is not None and (final_box(r["answer"]) is not None
-                                                             and same(final_box(r["answer"]), uncut_final))
-                return {"correct": r["correct"], "agree": same_as_uncut,
-                        "either": r["correct"] or same_as_uncut}[args.accept]
+    tok = None
+    examples, no_trace = [], 0
+    stats = defaultdict(lambda: [0, 0])                     # (state, bucket) -> [cut points, with target]
+    for r in recs:
+        b = bucket(r["frac"])
+        stats[(r["state"], b)][0] += 1
+        if r["chosen"] is None:
+            continue
+        t = traces.get((r["id"], r["sample"]))
+        if t is None:
+            no_trace += 1
+            continue
+        chars = r.get("prefix_chars")
+        if chars is None:                                   # older records: rebuild the prefix from tokens
+            if tok is None:
+                from transformers import AutoTokenizer
+                tok = AutoTokenizer.from_pretrained(args.model)
+            ids = tok.encode(t["thinking"], add_special_tokens=False)[: r["u"]]
+            pre = tok.decode(ids)
+            chars = len(pre) if t["thinking"].startswith(pre) else int(len(t["thinking"]) * r["u"] / max(len(ids), 1))
+        if r["chosen"] == -1:
+            think, answer, src = "", r["hard"]["answer"], "stop-now"
+        else:
+            c = r["cands"][r["chosen"]]
+            think, answer, src = c["think"], c["answer"], "sample"
+        stats[(r["state"], b)][1] += 1
+        examples.append({
+            "id": r["id"], "sample": r["sample"], "source": r.get("source"), "state": STATES[r["state"]],
+            "cut": b, "frac": r["frac"], "cut_tokens": r["u"], "uncut_thinking_tokens": r["L"],
+            "user": t["prompt"] + (SUFFIX if t.get("suffix") is None else t["suffix"]),
+            "thinking_prefix": t["thinking"][:chars],
+            "target_thinking": think, "target_answer": answer,
+            "target_think_tokens": r["chosen_tok"], "target_tokens": r["chosen_total"],
+            "target_correct": True, "weight": 1.0, "from_cond": src,
+            "uncut_rest_tokens": r["L"] - r["u"] + r["uncut_answer_tok"],
+        })
 
-            agree, tried = defaultdict(int), defaultdict(int)
-            for r in g:
-                agree[r["cond"]] += bool(ok(r))
-                tried[r["cond"]] += 1
-            usable = [r for r in g if ok(r) and agree[r["cond"]] >= min(need, tried[r["cond"]])
-                      and (r["grace"] == 0 or r["self_term"])]
-            rest = m["L"] - u + m["uncut_answer_tok"]
-            for B in levels:
-                cand = [r for r in usable if r["think_after_tok"] <= B and (r["kind"] == "prune" or r["grace"] <= B)]
-                best = min(cand, key=lambda r: r["think_after_tok"] + r["answer_tok"]) if cand else None
-                stats[state][B].append((best is not None,
-                                        best["think_after_tok"] + best["answer_tok"] if best else None, rest))
-                if best is None:
-                    continue
-                examples.append({
-                    "id": pid, "sample": sample, "source": m.get("source"), "state": state,
-                    "cut_tokens": u, "uncut_thinking_tokens": m["L"],
-                    "user": t["prompt"] + (SUFFIX if t.get("suffix") is None else t["suffix"]),
-                    "thinking_prefix": t["thinking"][: m["prefix_chars"]],
-                    "notice": notice_text("notice", 0),
-                    "target_thinking": best["think_after"],          # what the model should think after the notice
-                    "target_answer": best["answer"],
-                    "target_tokens": best["think_after_tok"] + best["answer_tok"],
-                    "target_correct": bool(best["correct"]),
-                    "weight": 1.0 if best["correct"] else 0.5,      # same-as-uncut-but-wrong targets count half
-                    "uncut_rest_tokens": rest, "from_cond": best["cond"],
-                })
+    rng = random.Random(args.seed)
+    n_before = len(examples)
 
-    easy = [e for e in examples if e["state"] == "has conclusion"]
-    other = [e for e in examples if e["state"] != "has conclusion"]
-    cap = args.cap_concluded
-    if 0 < cap < 1 and other and len(easy) > cap / (1 - cap) * len(other):
-        keep = int(cap / (1 - cap) * len(other))
-        np.random.default_rng(0).shuffle(easy)
-        print(f"'has conclusion' examples: kept {keep} of {len(easy)} (cap {cap:.0%} of the set)")
-        easy = easy[:keep]
-    examples = sorted(easy + other, key=lambda e: (e["id"], e["sample"], e["cut_tokens"]))
-    n_out = len(examples)
-    with open(out_path, "w") as f:
+    def cap(pool_pred, share, label):
+        nonlocal examples
+        pool = [e for e in examples if pool_pred(e)]
+        rest = [e for e in examples if not pool_pred(e)]
+        if 0 < share < 1 and rest and len(pool) > share / (1 - share) * len(rest):
+            keep = int(share / (1 - share) * len(rest))
+            rng.shuffle(pool)
+            print(f"{label}: kept {keep} of {len(pool)} (cap {share:.0%})")
+            pool = pool[:keep]
+        examples = pool + rest
+
+    cap(lambda e: e["state"] == "has conclusion", args.cap_concluded, "'has conclusion' examples")
+    is_stop = lambda e: e["from_cond"] == "stop-now" or (e["target_think_tokens"] or 0) < args.stop_below
+    cap(is_stop, args.max_stop_share, f"'stop now' targets (incl. continuations under {args.stop_below} tokens)")
+    examples.sort(key=lambda e: (e["id"], e["sample"], e["cut_tokens"]))
+
+    out = args.out or os.path.join("sft", os.path.basename(args.runs[0]).replace(".jsonl", "") + ".sft.jsonl")
+    os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
+    with open(out, "w") as f:
         for e in examples:
             f.write(json.dumps(e, ensure_ascii=False) + "\n")
-    by_src = defaultdict(int)
-    for e in examples:
-        by_src[e["from_cond"]] += 1
-    print("targets by source: " + ", ".join(f"{k} {v}" for k, v in sorted(by_src.items())))
 
-    print(f"{len(by_cut)} cut points, {kmax} sample(s) per condition, a condition must be correct in >= {need} of them")
-    print(f"{n_out} SFT examples -> {out_path}\n")
-    print("Share of cut points that have a usable target, by state")
-    print(f"{'state':<24}{'cut pts':>8}{'target':>10}")
-    for state in ("has conclusion", "mid-way, solvable", "unsolved when uncut"):
-        if state in stats:
-            n = len(stats[state][levels[0]])
-            print(f"{state:<24}{n:>8}" + "".join(f"{np.mean([x[0] for x in stats[state][B]]):>10.0%}" for B in levels))
-    print("\nMedian tokens after the cut: target vs what the uncut run used (thinking + answer)")
-    print(f"{'state':<24}{'target':>10}{'uncut':>10}")
-    for state in stats:
-        cells = []
-        for B in levels:
-            c = [x[1] for x in stats[state][B] if x[0]]
-            cells.append(f"{np.median(c):>10.0f}" if c else f"{'-':>10}")
-        print(f"{state:<24}" + "".join(cells) + f"{np.median([x[2] for x in stats[state][levels[0]]]):>10.0f}")
-    print("\nA low share in a row means no short correct wrap-up was found from that state: add cut")
-    print("points or problems, or check the pruning pass rate.")
+    print(f"\n{len(recs)} cut points read ({n_unsolved} from unsolved traces skipped), {n_before} with a target, "
+          f"{len(examples)} examples written -> {out}")
+    if no_trace:
+        print(f"!! {no_trace} cut points had no trace in --traces (pass every trace file the runs came from)")
+    print(f"\n{'state':<12}{'cut':>8}{'cut pts':>9}{'target':>9}")
+    for (s, b), (n, k) in sorted(stats.items(), key=lambda kv: (kv[0][0], {"early": 0, "middle": 1, "late": 2}[kv[0][1]])):
+        print(f"{s:<12}{b:>8}{n:>9}{k / n:>9.0%}")
+
+    src = Counter(e["from_cond"] for e in examples)
+    st = Counter(e["state"] for e in examples)
+    per_problem = Counter(e["id"] for e in examples)
+    print("\nexamples by source: " + ", ".join(f"{k} {v} ({v / len(examples):.0%})" for k, v in src.most_common()))
+    print("examples by state:  " + ", ".join(f"{k} {v}" for k, v in st.most_common()))
+    print(f"distinct problems: {len(per_problem)}; examples per problem: mean {np.mean(list(per_problem.values())):.1f}, "
+          f"max {max(per_problem.values())}")
+    th = np.array([e["target_think_tokens"] for e in examples])
+    tot = np.array([e["target_tokens"] for e in examples])
+    rest = np.array([e["uncut_rest_tokens"] for e in examples])
+    cont = np.array([e["target_think_tokens"] for e in examples if e["from_cond"] == "sample"])
+    if len(cont):
+        print(f"continuations: {len(cont)}; thinking tokens <{args.stop_below} {np.mean(cont < args.stop_below):.0%} | "
+              f"{args.stop_below}-199 {np.mean((cont >= args.stop_below) & (cont < 200)):.0%} | 200-599 "
+              f"{np.mean((cont >= 200) & (cont < 600)):.0%} | 600+ {np.mean(cont >= 600):.0%} | median {np.median(cont):.0f}")
+    print(f"target thinking tokens: p25 {np.percentile(th, 25):.0f} | median {np.median(th):.0f} | "
+          f"p75 {np.percentile(th, 75):.0f} | p90 {np.percentile(th, 90):.0f}")
+    print(f"tokens after the cut, target vs uncut (thinking + answer): median {np.median(tot):.0f} vs {np.median(rest):.0f} "
+          f"| total saved {1 - tot.sum() / rest.sum():.0%}")
+    mid = st.get("mid-way, solvable", 0)
+    print(f"\nmid-way examples: {mid}")
 
 
 if __name__ == "__main__":

@@ -90,7 +90,7 @@ async def one_run(srv, r, base_ids, think_ids, u, cond, k, args, verbose=False):
     name, kind, grace = cond
     prefix = base_ids + think_ids[:u]
     seed = args.seed * 100003 + zlib.crc32(f"{r['id']}|{r.get('sample', 0)}|{u}|{name}|{k}".encode()) % 1_000_000
-    think_after, n_after, self_term = "", 0, None
+    think_after, n_after, self_term, echoed = "", 0, None, False
     if kind == "hard":
         ids = prefix + await srv.tok("\n" + CLOSE + "\n\n", cache=True)
     else:
@@ -100,17 +100,21 @@ async def one_run(srv, r, base_ids, think_ids, u, cond, k, args, verbose=False):
         self_term = p1["stop_reason"] == CLOSE or (p1["finish"] == "stop" and p1["stop_reason"] is None
                                                    and n_after < grace)
         tail = think_after + (CLOSE + "\n\n" if self_term else "\n" + CLOSE + "\n\n")
+        head = notice_text(kind, grace).strip()[:40]
+        echoed = think_after.lstrip().startswith(head)         # the model first copied the notice back
         ids = ids + await srv.tok(tail)
     p2 = await srv.complete(ids, args.answer_max, seed + 1)
     answer = clean(p2["text"])
     if verbose:
         print(f"\n--- {name} | cut at {u} of {len(think_ids)} thinking tokens ---")
         if kind != "hard":
-            print(f"thinking after the notice ({n_after} tokens, closed by itself: {self_term}):")
+            print(f"thinking after the notice ({n_after} tokens, closed by itself: {self_term}"
+                  + (", it first COPIED the notice back" if echoed else "") + "):")
             print("   ", clean(think_after)[:600].replace("\n", "\n    "))
         print(f"answer ({p2['n']} tokens, finish {p2['finish']}):")
         print("   ", answer[:500].replace("\n", "\n    "))
-    return {"think_after": clean(think_after) if args.keep_text else "", "think_after_tok": n_after,
+    return {"echoed_notice": kind != "hard" and echoed,
+            "think_after": clean(think_after) if args.keep_text else "", "think_after_tok": n_after,
             "self_term": self_term, "answer": answer, "answer_tok": p2["n"], "answer_finish": p2["finish"],
             "correct": graded(answer, r["gold"])}
 

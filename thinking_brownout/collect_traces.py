@@ -98,10 +98,15 @@ def norm(s):
 
 
 def is_correct(answer_text, gold):
-    """Crude string/number match. Good enough to filter traces, not for paper numbers."""
+    """Last \\boxed{} vs gold, with the shared math-aware grader (analyze_boxed.same)."""
     pred = last_boxed(answer_text or "")
     if pred is None:
         return False
+    try:
+        from analyze_boxed import same
+        return same(pred, gold)
+    except ImportError:
+        pass
     p, g = norm(pred), norm(gold)
     if p == g:
         return True
@@ -207,7 +212,7 @@ async def main():
     ap.add_argument("--n-gsm8k", type=int, default=300)
     ap.add_argument("--n-math500", type=int, default=500)
     ap.add_argument("--n-deepscaler", type=int, default=500)
-    ap.add_argument("--skip-ids-from", default=None,
+    ap.add_argument("--skip-ids-from", nargs="+", default=None,
                     help="a trace file; problems whose id is already in it are skipped (use it to collect "
                          "only NEW problems, e.g. more DeepScaleR for training data)")
     ap.add_argument("--prompts-file", help="optional JSONL with id, source, prompt, gold")
@@ -231,12 +236,13 @@ async def main():
         items = [it for it in items if it["source"] == args.only_source]
     if args.skip_ids_from:
         seen = set()
-        with open(args.skip_ids_from) as f:
-            for line in f:
-                try:
-                    seen.add(json.loads(line)["id"])
-                except (json.JSONDecodeError, KeyError):
-                    pass
+        for path in args.skip_ids_from:
+            with open(path) as f:
+                for line in f:
+                    try:
+                        seen.add(json.loads(line)["id"])
+                    except (json.JSONDecodeError, KeyError):
+                        pass
         before = len(items)
         items = [it for it in items if it["id"] not in seen]
         print(f"--skip-ids-from: {before - len(items)} problems already collected, {len(items)} new")
@@ -265,7 +271,10 @@ async def main():
         if os.path.exists(path):
             with open(path) as f:
                 for line in f:
-                    r = json.loads(line)
+                    try:
+                        r = json.loads(line)
+                    except json.JSONDecodeError:      # half-written last line from a killed run
+                        continue
                     done.add((r["id"], r["sample"]))
         todo = [(it, s) for it in items for s in range(args.samples) if (it["id"], s) not in done]
         random.Random(2).shuffle(todo)  # mix short and long requests in the batch
